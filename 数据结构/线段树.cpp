@@ -1,12 +1,39 @@
 /*
-需要根据题目修改的部分：
+线段树使用方法：
 
-1. Node：一个区间需要维护什么信息
-2. Tag：区间修改需要什么懒标记
-3. mergeNode：父节点如何由左右儿子得到
-4. applyTag：修改如何作用到一个节点
-5. mergeTag：两个懒标记如何叠加
+1. 建树：
+vector<Node> arr(n + 1);
+for (int i = 1; i <= n; i++)
+{
+    int x;
+    cin >> x;
+    arr[i] = Node(x);
+}
+SegmentTree tree(arr);
+
+2. 单点修改：
+tree.change(pos, Node(val));
+
+3. 单点查询：
+Node res = tree.get(pos);
+
+4. 区间查询：
+Node res = tree.query(l, r);
+
+5. 区间修改：
+tree.rangeChange(l, r, Tag(val));
+
+注意：
+1. 数组必须是1-based。
+2. 线段树放在solve()里面，多组测试不会累计内存。
+3. Node()必须表示空节点。
+4. Tag表示一次区间修改。
+5. 如果题目没有区间修改，可以不调用rangeChange。
 */
+
+// ==================================================
+// ===== 这里写一个节点需要保存的信息 ================
+// ==================================================
 
 struct Node
 {
@@ -15,7 +42,7 @@ struct Node
     int mx;
     int len;
 
-    // 空节点，用于区间查询合并
+    // 空节点，用于区间查询时合并
     Node()
     {
         sum = 0;
@@ -24,7 +51,7 @@ struct Node
         len = 0;
     }
 
-    // 根据一个数组元素建立叶子节点
+    // 根据一个数组元素创建叶子节点
     Node(int val)
     {
         sum = val;
@@ -33,6 +60,10 @@ struct Node
         len = 1;
     }
 };
+
+// ==================================================
+// ===== 这里写区间修改需要保存的懒标记 ==============
+// ==================================================
 
 struct Tag
 {
@@ -44,14 +75,17 @@ struct Tag
         add = 0;
     }
 
-    // 构造区间加法标记
+    // 根据一次修改创建懒标记
     Tag(int val)
     {
         add = val;
     }
 };
 
-// 父节点由左右儿子合并得到
+// ==================================================
+// ===== 这里写父节点和左右儿子的关系 ================
+// ==================================================
+
 Node mergeNode(const Node &left, const Node &right)
 {
     if (left.len == 0)
@@ -74,7 +108,10 @@ Node mergeNode(const Node &left, const Node &right)
     return res;
 }
 
-// 把一个区间修改作用到节点上
+// ==================================================
+// ===== 这里写一次区间修改如何影响节点信息 ==========
+// ==================================================
+
 void applyTag(Node &node, const Tag &tag)
 {
     node.sum += tag.add * node.len;
@@ -82,11 +119,18 @@ void applyTag(Node &node, const Tag &tag)
     node.mx += tag.add;
 }
 
-// 把新的懒标记叠加到原来的懒标记上
+// ==================================================
+// ===== 这里写两个懒标记如何叠加 ====================
+// ==================================================
+
 void mergeTag(Tag &oldTag, const Tag &newTag)
 {
     oldTag.add += newTag.add;
 }
+
+// ==================================================
+// ===== 下面是线段树主体，一般不需要修改 ============
+// ==================================================
 
 struct SegmentTree
 {
@@ -101,18 +145,19 @@ struct SegmentTree
         n = 0;
     }
 
-    // arr必须是1-based数组
-    SegmentTree(const vector<int> &arr)
+    // 根据1-based节点数组建树
+    SegmentTree(const vector<Node> &arr)
     {
         init(arr);
     }
 
+    // 用左右儿子更新父节点
     void pushUp(int id)
     {
-        // 这就是一个节点和左右儿子的数据关系
         tr[id] = mergeNode(tr[id * 2], tr[id * 2 + 1]);
     }
 
+    // 给当前节点添加修改
     void apply(int id, const Tag &tag)
     {
         applyTag(tr[id], tag);
@@ -128,6 +173,7 @@ struct SegmentTree
         }
     }
 
+    // 把懒标记传给左右儿子
     void pushDown(int id)
     {
         if (haveLazy[id] == 0)
@@ -142,11 +188,12 @@ struct SegmentTree
         haveLazy[id] = 0;
     }
 
-    void build(int id, int l, int r, const vector<int> &arr)
+    // 递归建树
+    void build(int id, int l, int r, const vector<Node> &arr)
     {
         if (l == r)
         {
-            tr[id] = Node(arr[l]);
+            tr[id] = arr[l];
             return;
         }
 
@@ -158,7 +205,8 @@ struct SegmentTree
         pushUp(id);
     }
 
-    void init(const vector<int> &arr)
+    // 初始化线段树
+    void init(const vector<Node> &arr)
     {
         n = arr.size() - 1;
 
@@ -169,11 +217,17 @@ struct SegmentTree
         build(1, 1, n, arr);
     }
 
-    void change(int id, int l, int r, int pos, int val)
+    // 单点修改
+    void change(
+        int id,
+        int l,
+        int r,
+        int pos,
+        const Node &val)
     {
         if (l == r)
         {
-            tr[id] = Node(val);
+            tr[id] = val;
             lazy[id] = Tag();
             haveLazy[id] = 0;
             return;
@@ -196,11 +250,12 @@ struct SegmentTree
     }
 
     // 把位置pos直接修改成val
-    void change(int pos, int val)
+    void change(int pos, const Node &val)
     {
         change(1, 1, n, pos, val);
     }
 
+    // 区间修改
     void rangeChange(
         int id,
         int l,
@@ -232,13 +287,19 @@ struct SegmentTree
         pushUp(id);
     }
 
-    // 给区间[l,r]进行一次修改
+    // 对区间[l,r]执行tag修改
     void rangeChange(int l, int r, const Tag &tag)
     {
         rangeChange(1, 1, n, l, r, tag);
     }
 
-    Node query(int id, int l, int r, int ql, int qr)
+    // 区间查询
+    Node query(
+        int id,
+        int l,
+        int r,
+        int ql,
+        int qr)
     {
         if (ql <= l && r <= qr)
         {
@@ -271,9 +332,15 @@ struct SegmentTree
         return query(1, 1, n, l, r);
     }
 
-    // 查询单点pos
+    // 查询位置pos
     Node get(int pos)
     {
         return query(pos, pos);
+    }
+
+    // 查询整个数组
+    Node all()
+    {
+        return tr[1];
     }
 };
