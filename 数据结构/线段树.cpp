@@ -1,3 +1,4 @@
+const int INF = numeric_limits<int>::max() / 2;
 /*
 线段树使用方法：
 
