@@ -41,7 +41,7 @@ signed main()
         for (int i = 1; i <= n; i++)
         {
             pair<int, int> last;
-            last.first = -1, last.second = -1;
+            last.first = 0, last.second = 0;
 
             while (!stk.empty() && stk.top().second > arr[i])
             {
