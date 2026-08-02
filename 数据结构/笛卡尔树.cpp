@@ -1,3 +1,5 @@
+//笛卡尔树区间l，r节点的祖先就是l到r区间构成笛卡尔树的根节点
+
 #include <bits/stdc++.h>
 using namespace std;
 
