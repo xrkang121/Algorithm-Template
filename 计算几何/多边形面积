@@ -1,0 +1,40 @@
+/*
+多边形面积
+
+使用方法：
+
+vector<Point> p(n);
+
+for (int i = 0; i < n; i++)
+{
+    cin >> p[i].x >> p[i].y;
+}
+
+int area2 = polygonArea2(p);
+
+area2 表示多边形面积的两倍。
+*/
+
+// 求多边形有向面积的两倍
+// 返回正数：顶点按照逆时针排列
+// 返回负数：顶点按照顺时针排列
+int signedPolygonArea2(vector<Point> p)
+{
+    int n = p.size();
+    int res = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        int j = (i + 1) % n;
+
+        res += cross(p[i], p[j]);
+    }
+
+    return res;
+}
+
+// 求多边形面积的两倍
+int polygonArea2(vector<Point> p)
+{
+    return abs(signedPolygonArea2(p));
+}
