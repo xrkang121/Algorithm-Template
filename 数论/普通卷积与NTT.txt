@@ -39,49 +39,74 @@ int qmi(int a, int b)
     return res;
 }
 
-// invert=false：系数表示转成点值表示
-// invert=true ：点值表示转回系数表示
 void NTT(vector<int> &a, bool invert)
 {
     int n = a.size();
 
-    // 位逆序置换
-    for (int i = 1, j = 0; i < n; i++)
+    if (n == 1)
     {
-        int bit = n >> 1;
+        return;
+    }
 
-        while (j & bit)
+    // rev只在NTT长度变化时重新计算
+    static vector<int> rev;
+
+    // roots只会不断扩展，不会重复计算
+    static vector<int> roots{0, 1};
+
+    if ((int)rev.size() != n)
+    {
+        int k = __builtin_ctz(n);
+
+        rev.assign(n, 0);
+
+        for (int i = 0; i < n; i++)
         {
-            j ^= bit;
-            bit >>= 1;
+            rev[i] =
+                (rev[i >> 1] >> 1) |
+                ((i & 1) << (k - 1));
         }
+    }
 
-        j ^= bit;
+    // 预处理所有需要使用的单位根
+    if ((int)roots.size() < n)
+    {
+        int k = __builtin_ctz((int)roots.size());
 
-        if (i < j)
+        roots.resize(n);
+
+        while ((1 << k) < n)
         {
-            swap(a[i], a[j]);
+            int e = qmi(G, (mod - 1) >> (k + 1));
+
+            for (int i = 1 << (k - 1); i < (1 << k); i++)
+            {
+                roots[i << 1] = roots[i];
+                roots[i << 1 | 1] = 1LL * roots[i] * e % mod;
+            }
+
+            k++;
+        }
+    }
+
+    // 位逆序置换
+    for (int i = 0; i < n; i++)
+    {
+        if (i < rev[i])
+        {
+            swap(a[i], a[rev[i]]);
         }
     }
 
     // 蝴蝶操作
-    for (int len = 2; len <= n; len <<= 1)
+    for (int len = 1; len < n; len <<= 1)
     {
-        int wn = qmi(G, (mod - 1) / len);
-
-        if (invert)
+        for (int i = 0; i < n; i += len << 1)
         {
-            wn = qmi(wn, mod - 2);
-        }
-
-        for (int i = 0; i < n; i += len)
-        {
-            int w = 1;
-
-            for (int j = 0; j < len / 2; j++)
+            for (int j = 0; j < len; j++)
             {
                 int x = a[i + j];
-                int y = 1LL * a[i + j + len / 2] * w % mod;
+                int y = 1LL * a[i + j + len] * roots[len + j] % mod;
 
                 a[i + j] = x + y;
 
@@ -90,20 +115,20 @@ void NTT(vector<int> &a, bool invert)
                     a[i + j] -= mod;
                 }
 
-                a[i + j + len / 2] = x - y;
+                a[i + j + len] = x - y;
 
-                if (a[i + j + len / 2] < 0)
+                if (a[i + j + len] < 0)
                 {
-                    a[i + j + len / 2] += mod;
+                    a[i + j + len] += mod;
                 }
-
-                w = 1LL * w * wn % mod;
             }
         }
     }
 
     if (invert)
     {
+        reverse(a.begin() + 1, a.end());
+
         int inv_n = qmi(n, mod - 2);
 
         for (int &x : a)
