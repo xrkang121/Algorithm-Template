@@ -1,0 +1,190 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+/*
+Tarjan 强连通分量使用方法：
+
+1. 建立有向图，点编号必须是 0 到 n-1：
+
+   mymap.assign(n, vector<int>());
+   mymap[x].push_back(y);
+
+2. 建完图后调用：
+
+   run_tarjan(n);
+
+3. 调用完成后：
+
+   scc[x] 表示点 x 所属的强连通分量编号。
+   scc_cnt 表示强连通分量总数。
+   scc_size[id] 表示第 id 个强连通分量的点数。
+   scc_point[id] 保存第 id 个强连通分量中的所有点。
+
+   判断两个点是否在同一个强连通分量：
+
+   if (scc[x] == scc[y])
+   {
+       // x 和 y 可以互相到达
+   }
+
+4. 如果需要建立缩点后的图，继续调用：
+
+   build_scc_graph(n);
+
+   scc_map[id] 是缩点后从强连通分量 id 出发的边。
+   scc_indegree[id] 是缩点后 id 的入度。
+   scc_outdegree[id] 是缩点后 id 的出度。
+
+   scc_map 中已经去除了重边，点编号是 1 到 scc_cnt。
+
+5. 2-SAT 判断第 i 个变量是否矛盾：
+
+   int state_0 = 2 * i;
+   int state_1 = state_0 + 1;
+
+   if (scc[state_0] == scc[state_1])
+   {
+       // 无解
+   }
+
+注意：
+1. mymap 必须是有向图。
+2. 支持多组测试，每次重新建立 mymap 后调用 run_tarjan(n) 即可。
+3. 这份板子使用递归 DFS，图是一条特别深的链时需要注意递归栈限制。
+*/
+
+vector<vector<int>> mymap;
+
+vector<int> dfn;
+vector<int> low;
+vector<int> scc;
+vector<int> stk;
+vector<char> in_stk;
+
+vector<int> scc_size;
+vector<vector<int>> scc_point;
+
+vector<vector<int>> scc_map;
+vector<int> scc_indegree;
+vector<int> scc_outdegree;
+
+int dfs_cnt;
+int scc_cnt;
+
+void tarjan(int x)
+{
+    dfn[x] = low[x] = ++dfs_cnt;
+
+    stk.push_back(x);
+    in_stk[x] = true;
+
+    for (int i = 0; i < mymap[x].size(); i++)
+    {
+        int nxt = mymap[x][i];
+
+        if (dfn[nxt] == 0)
+        {
+            tarjan(nxt);
+
+            low[x] = min(low[x], low[nxt]);
+        }
+        else if (in_stk[nxt])
+        {
+            low[x] = min(low[x], dfn[nxt]);
+        }
+    }
+
+    if (dfn[x] == low[x])
+    {
+        scc_cnt++;
+
+        while (true)
+        {
+            int now = stk.back();
+            stk.pop_back();
+
+            in_stk[now] = false;
+            scc[now] = scc_cnt;
+
+            if (now == x)
+            {
+                break;
+            }
+        }
+    }
+}
+
+void run_tarjan(int n)
+{
+    dfn.assign(n, 0);
+    low.assign(n, 0);
+    scc.assign(n, 0);
+    in_stk.assign(n, false);
+
+    stk.clear();
+    stk.reserve(n);
+
+    dfs_cnt = 0;
+    scc_cnt = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        if (dfn[i] == 0)
+        {
+            tarjan(i);
+        }
+    }
+
+    // 统计每个强连通分量的大小和包含的点
+    scc_size.assign(scc_cnt + 1, 0);
+    scc_point.assign(scc_cnt + 1, vector<int>());
+
+    for (int i = 0; i < n; i++)
+    {
+        scc_size[scc[i]]++;
+        scc_point[scc[i]].push_back(i);
+    }
+}
+
+void build_scc_graph(int n)
+{
+    /*
+    必须先调用 run_tarjan(n)，再调用这个函数。
+    只有需要缩点图时才调用，避免不必要的排序开销。
+    */
+
+    // 收集缩点后的边
+    vector<pair<int, int>> edges;
+
+    for (int x = 0; x < n; x++)
+    {
+        for (int y : mymap[x])
+        {
+            int a = scc[x];
+            int b = scc[y];
+
+            if (a != b)
+            {
+                edges.push_back({a, b});
+            }
+        }
+    }
+
+    // 去除缩点图中的重边
+    sort(edges.begin(), edges.end());
+    edges.erase(unique(edges.begin(), edges.end()), edges.end());
+
+    scc_map.assign(scc_cnt + 1, vector<int>());
+    scc_indegree.assign(scc_cnt + 1, 0);
+    scc_outdegree.assign(scc_cnt + 1, 0);
+
+    for (auto edge : edges)
+    {
+        int x = edge.first;
+        int y = edge.second;
+
+        scc_map[x].push_back(y);
+        scc_outdegree[x]++;
+        scc_indegree[y]++;
+    }
+}
