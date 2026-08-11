@@ -1,0 +1,289 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+/*
+==================================================
+树上差分板子
+==================================================
+
+适用范围：
+有很多次树上路径修改，全部修改结束后，统一求每个节点或每条边的结果。
+
+注意：
+树上差分是离线算法。
+如果每次修改后立刻查询，应该使用树链剖分等在线算法。
+
+--------------------------------------------------
+情况一：节点差分
+--------------------------------------------------
+
+作用：
+把 x 到 y 路径上的所有节点加 val。
+
+使用：
+addNodePath(x, y, val);
+
+公式：
+z = lca(x, y)
+diff_node[x] += val
+diff_node[y] += val
+diff_node[z] -= val
+diff_node[father[z]] -= val
+
+所有修改结束后调用：
+getAnswer(root, 0);
+
+此时：
+diff_node[x] 就是节点 x 的最终答案。
+
+--------------------------------------------------
+情况二：边差分
+--------------------------------------------------
+
+作用：
+把 x 到 y 路径上的所有边加 val。
+
+使用：
+addEdgePath(x, y, val);
+
+公式：
+z = lca(x, y)
+diff_edge[x] += val
+diff_edge[y] += val
+diff_edge[z] -= 2 * val
+
+所有修改结束后调用：
+getAnswer(root, 0);
+
+此时：
+edge_answer[i] 就是输入的第 i 条边的最终答案。
+
+--------------------------------------------------
+你需要根据题目修改的地方
+--------------------------------------------------
+
+1. MAXN：节点数量上限。
+2. LOG：保证 2^LOG >= n。
+3. main() 中的输入和输出格式。
+4. root：树根，现在默认为 1。
+5. 题目只需要节点差分时，只调用 addNodePath。
+6. 题目只需要边差分时，只调用 addEdgePath。
+7. 如果每条路径只是加 1，val 直接传 1。
+
+当前示例输入格式：
+
+n q
+n-1 条边
+q 次操作
+
+操作 1 x y val：x 到 y 路径上的节点全部加 val
+操作 2 x y val：x 到 y 路径上的边全部加 val
+
+程序最后输出：
+第一行：每个节点的答案
+第二行：每条边的答案
+==================================================
+*/
+
+// ===== 你需要修改：数据范围 =====
+const int MAXN = 2e5 + 5;
+const int LOG = 20;
+
+typedef struct Edge
+{
+    int to;
+    int id;
+} Edge;
+
+int n, q;
+
+vector<vector<Edge>> tree(MAXN);
+
+vector<int> depth(MAXN);
+vector<int> diff_node(MAXN);
+vector<int> diff_edge(MAXN);
+vector<int> edge_answer(MAXN);
+vector<int> father_edge(MAXN);
+
+int fa[MAXN][LOG + 1];
+
+// 预处理深度、倍增祖先、每个节点与父亲之间的边编号
+void dfs(int x, int father)
+{
+    fa[x][0] = father;
+    depth[x] = depth[father] + 1;
+
+    for (int i = 1; i <= LOG; i++)
+    {
+        fa[x][i] = fa[fa[x][i - 1]][i - 1];
+    }
+
+    for (int i = 0; i < tree[x].size(); i++)
+    {
+        int now = tree[x][i].to;
+        int edge_id = tree[x][i].id;
+
+        if (now == father)
+        {
+            continue;
+        }
+
+        father_edge[now] = edge_id;
+
+        dfs(now, x);
+    }
+}
+
+int lca(int x, int y)
+{
+    if (depth[x] < depth[y])
+    {
+        swap(x, y);
+    }
+
+    int dis = depth[x] - depth[y];
+
+    for (int i = LOG; i >= 0; i--)
+    {
+        if ((dis >> i) & 1)
+        {
+            x = fa[x][i];
+        }
+    }
+
+    if (x == y)
+    {
+        return x;
+    }
+
+    for (int i = LOG; i >= 0; i--)
+    {
+        if (fa[x][i] != fa[y][i])
+        {
+            x = fa[x][i];
+            y = fa[y][i];
+        }
+    }
+
+    return fa[x][0];
+}
+
+// ==================================================
+// 情况一：节点差分
+// 把 x 到 y 路径上的所有节点加 val
+// ==================================================
+void addNodePath(int x, int y, int val)
+{
+    int z = lca(x, y);
+
+    diff_node[x] += val;
+    diff_node[y] += val;
+    diff_node[z] -= val;
+
+    if (fa[z][0] != 0)
+    {
+        diff_node[fa[z][0]] -= val;
+    }
+}
+
+// ==================================================
+// 情况二：边差分
+// 把 x 到 y 路径上的所有边加 val
+// ==================================================
+void addEdgePath(int x, int y, int val)
+{
+    int z = lca(x, y);
+
+    diff_edge[x] += val;
+    diff_edge[y] += val;
+    diff_edge[z] -= 2 * val;
+}
+
+// 从叶子向根累加所有差分
+void getAnswer(int x, int father)
+{
+    for (int i = 0; i < tree[x].size(); i++)
+    {
+        int now = tree[x][i].to;
+
+        if (now == father)
+        {
+            continue;
+        }
+
+        getAnswer(now, x);
+
+        diff_node[x] += diff_node[now];
+        diff_edge[x] += diff_edge[now];
+    }
+
+    // diff_edge[x] 表示 x 与 father[x] 之间这条边的答案
+    if (father != 0)
+    {
+        edge_answer[father_edge[x]] = diff_edge[x];
+    }
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    // ===== 你需要根据题目修改：输入格式 =====
+    cin >> n >> q;
+
+    for (int i = 1; i < n; i++)
+    {
+        int x, y;
+        cin >> x >> y;
+
+        // i 是这条边的输入编号
+        tree[x].push_back({y, i});
+        tree[y].push_back({x, i});
+    }
+
+    // ===== 你需要修改：如果根不是 1，修改 root =====
+    int root = 1;
+
+    dfs(root, 0);
+
+    while (q--)
+    {
+        int op, x, y, val;
+        cin >> op >> x >> y >> val;
+
+        if (op == 1)
+        {
+            // 节点差分
+            addNodePath(x, y, val);
+        }
+        else if (op == 2)
+        {
+            // 边差分
+            addEdgePath(x, y, val);
+        }
+    }
+
+    // 所有路径修改完成后，只能调用一次
+    getAnswer(root, 0);
+
+    // ===== 你需要根据题目修改：输出格式 =====
+
+    // 输出每个节点的答案
+    for (int i = 1; i <= n; i++)
+    {
+        cout << diff_node[i] << " ";
+    }
+    cout << "\n";
+
+    // 按照输入顺序输出每条边的答案
+    for (int i = 1; i < n; i++)
+    {
+        cout << edge_answer[i] << " ";
+    }
+    cout << "\n";
+
+    return 0;
+}
