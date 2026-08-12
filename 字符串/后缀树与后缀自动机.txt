@@ -1,0 +1,1453 @@
+============================================================
+一、先区分三个东西
+============================================================
+
+1. 后缀 Trie（本文件中的“朴素版”）
+
+把字符串 s 的所有后缀插入普通 Trie。
+
+优点：
+- 原理最直观；
+- 每个节点就是一个不同子串；
+- 前缀关系直接对应祖先关系；
+- 很容易在树上写 DP。
+
+缺点：
+- 最坏有 O(n^2) 个节点；
+- 构建时间和空间都是 O(n^2)。
+
+一般只用于：
+- n 很小；
+- 学习原理；
+- 暴力验证；
+- 题目明确允许 O(n^2)。
+
+
+2. 压缩后缀树（本文件中的“非朴素版”）
+
+把后缀 Trie 中没有分叉的长链压成一条边。
+
+如果有压缩边 u -> v：
+
+    边长 = dep[v] - dep[u]
+
+边上被省略的隐式节点数量为：
+
+    dep[v] - dep[u] - 1
+
+压缩后只有 O(n) 个显式节点。
+
+本文件使用：
+
+    后缀数组 SA + LCP + 单调栈
+
+建立压缩后缀树。
+
+复杂度：
+
+    建 SA：O(n log n)
+    建 LCP：O(n)
+    建压缩后缀树：O(n)
+    总复杂度：O(n log n)
+    空间复杂度：O(n)
+
+
+3. 后缀自动机 SAM
+
+后缀自动机也能表示所有不同子串，但它不是 Trie，也不是后缀树。
+
+如果题目只需要：
+- 不同子串数量；
+- 某个串是否为子串；
+- 子串出现次数；
+- 最长公共子串；
+
+通常后缀自动机或后缀数组更短。
+
+如果题目需要：
+- 按字符串前缀关系进行树形 DP；
+- 把所有不同子串看成一棵 Trie；
+- 处理压缩边上的隐式节点；
+- 研究后缀之间的公共前缀层级关系；
+
+压缩后缀树更自然。
+
+
+============================================================
+二、后缀树为什么能表示所有不同子串
+============================================================
+
+任意子串 s[l..r]，一定是后缀 s[l..n-1] 的一个前缀。
+
+因此，把所有后缀插入 Trie 后：
+
+- 每个非根节点对应一个不同子串；
+- 相同内容的子串会走到同一个节点，自动去重；
+- x 是 y 的前缀，当且仅当 x 的节点是 y 节点的祖先。
+
+所以朴素后缀 Trie 的节点数减一，就是不同非空子串数量。
+
+压缩后缀树虽然省略了一些节点，但每条边上的每个整数深度仍然代表
+一个不同子串。因此压缩后缀树的不同子串数量为：
+
+    sum(dep[v] - dep[fa[v]])，v != root
+
+
+============================================================
+三、朴素后缀 Trie 板子
+============================================================
+
+适用范围：
+
+- 时间和空间都是 O(n^2)；
+- 小数据、暴力验证、理解题意时使用；
+- 具体能开多大取决于字符串结构和内存，不建议拿它处理大数据。
+
+提供功能：
+
+    SuffixTrie trie(s);             建立后缀 Trie
+    trie.haveSubstring(t);          判断 t 是否为 s 的子串
+    trie.countOccurrence(t);        t 在 s 中出现多少次
+    trie.distinctSubstringCount();  不同非空子串数量
+    trie.getString(x);              取得节点 x 对应的字符串
+
+树形 DP 时：
+
+    trie.node[x].head               x 的第一条出边
+    trie.edge[id].nxt               下一条出边
+    trie.edge[id].to                儿子节点
+    trie.edge[id].c                 边上的字符
+    trie.node[x].depth              节点对应字符串的长度
+    trie.node[x].cnt                节点对应子串的出现次数
+
+【朴素版代码开始】
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct SuffixTrie
+{
+    struct Node
+    {
+        int head;
+        int father;
+        int depth;
+        int cnt;
+        int suffix_start;
+        char from_char;
+
+        Node(int _father = -1, int _depth = 0, char _from_char = 0)
+        {
+            head = -1;
+            father = _father;
+            depth = _depth;
+            cnt = 0;
+            suffix_start = -1;
+            from_char = _from_char;
+        }
+    };
+
+    struct Edge
+    {
+        int to;
+        int nxt;
+        char c;
+
+        Edge(int _to = 0, int _nxt = -1, char _c = 0)
+        {
+            to = _to;
+            nxt = _nxt;
+            c = _c;
+        }
+    };
+
+    string s;
+    vector<Node> node;
+    vector<Edge> edge;
+
+    SuffixTrie() {}
+
+    SuffixTrie(const string &_s)
+    {
+        build(_s);
+    }
+
+    int getSon(int x, char c)
+    {
+        for (int id = node[x].head; id != -1; id = edge[id].nxt)
+        {
+            if (edge[id].c == c)
+            {
+                return edge[id].to;
+            }
+        }
+
+        return -1;
+    }
+
+    int addNode(int father, char c)
+    {
+        int now = node.size();
+        node.push_back(Node(father, node[father].depth + 1, c));
+
+        edge.push_back(Edge(now, node[father].head, c));
+        node[father].head = edge.size() - 1;
+
+        return now;
+    }
+
+    void build(const string &_s)
+    {
+        s = _s;
+        node.clear();
+        edge.clear();
+
+        node.push_back(Node());
+        node[0].cnt = s.size();
+
+        for (int i = 0; i < (int)s.size(); i++)
+        {
+            int x = 0;
+
+            for (int j = i; j < (int)s.size(); j++)
+            {
+                int nxt = getSon(x, s[j]);
+
+                if (nxt == -1)
+                {
+                    nxt = addNode(x, s[j]);
+                }
+
+                x = nxt;
+                node[x].cnt++;
+            }
+
+            // 节点 x 是后缀 s[i..n-1] 的结尾
+            node[x].suffix_start = i;
+        }
+    }
+
+    bool haveSubstring(const string &t)
+    {
+        if (t.empty())
+        {
+            return false;
+        }
+
+        int x = 0;
+
+        for (int i = 0; i < (int)t.size(); i++)
+        {
+            x = getSon(x, t[i]);
+
+            if (x == -1)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    int countOccurrence(const string &t)
+    {
+        if (t.empty())
+        {
+            return 0;
+        }
+
+        int x = 0;
+
+        for (int i = 0; i < (int)t.size(); i++)
+        {
+            x = getSon(x, t[i]);
+
+            if (x == -1)
+            {
+                return 0;
+            }
+        }
+
+        return node[x].cnt;
+    }
+
+    int distinctSubstringCount()
+    {
+        return (int)node.size() - 1;
+    }
+
+    string getString(int x)
+    {
+        string res;
+
+        while (x != 0)
+        {
+            res.push_back(node[x].from_char);
+            x = node[x].father;
+        }
+
+        reverse(res.begin(), res.end());
+        return res;
+    }
+};
+
+【朴素版代码结束】
+
+
+朴素版使用示例：
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    string s;
+    cin >> s;
+
+    SuffixTrie trie(s);
+
+    cout << trie.distinctSubstringCount() << "\n";
+
+    string t;
+    cin >> t;
+
+    cout << trie.haveSubstring(t) << "\n";
+    cout << trie.countOccurrence(t) << "\n";
+
+    return 0;
+}
+
+
+============================================================
+四、压缩后缀树中每个数组的含义
+============================================================
+
+构造方式：SA + LCP + 单调栈。
+
+使用：
+
+    SuffixTree tree(s);
+
+主要成员：
+
+    tree.sa[i]
+        字典序第 i 小的后缀起点，0-based。
+
+    tree.lcp[i]
+        sa[i-1] 和 sa[i] 的最长公共前缀长度。
+        lcp[0] = 0。
+
+    tree.dep[x]
+        节点 x 代表的字符串长度。
+        根节点编号为 0，dep[0] = 0。
+
+    tree.fa[x]
+        节点 x 的父亲。
+
+    tree.tree[x]
+        节点 x 的所有显式儿子。
+
+    tree.suffix_start[x]
+        如果节点 x 恰好是某个后缀的结尾，则保存该后缀起点；
+        否则为 -1。
+
+        注意：没有在字符串末尾添加特殊字符，所以一个后缀结尾节点
+        仍然可能有儿子。
+
+    tree.represent[x]
+        节点 x 子树中任选的一个后缀起点。
+        用来还原节点字符串和压缩边标签。
+
+    tree.siz[x]
+        节点 x 子树中有多少个后缀起点。
+        也就是节点 x 对应字符串的出现次数。
+
+    tree.order
+        根在前、儿子在后的遍历顺序。
+        从 order.size()-1 倒着遍历，就能进行自底向上的树形 DP。
+
+
+============================================================
+五、压缩后缀树常用操作
+============================================================
+
+1. 判断 t 是否为 s 的子串
+
+    tree.haveSubstring(t)
+
+复杂度为 O(字符集大小 * |t|)。
+小写字母字符集最多 26，可以看成 O(|t|)。
+
+
+2. 查询 t 在 s 中出现多少次
+
+    tree.countOccurrence(t)
+
+如果 t 停在一条压缩边中间，那么它的出现次数等于该边下端节点
+子树中的后缀数量。
+
+
+3. 统计不同非空子串数量
+
+    tree.distinctSubstringCount()
+
+等于所有压缩边长度之和：
+
+    sum(dep[v] - dep[fa[v]])
+
+
+4. 求至少出现 k 次的最长子串
+
+    tree.longestRepeatedSubstring(k)
+
+返回任意一个满足条件的最长子串。
+
+
+5. 取得节点 x 对应的字符串
+
+    tree.getString(x)
+
+对应区间为：
+
+    s[represent[x] ... represent[x] + dep[x] - 1]
+
+
+6. 取得压缩边 u -> v 的标签
+
+标签在原串中的左右端点为：
+
+    int l = tree.represent[v] + tree.dep[u];
+    int r = tree.represent[v] + tree.dep[v] - 1;
+
+边标签为：
+
+    s.substr(l, r - l + 1)
+
+边长为：
+
+    tree.dep[v] - tree.dep[u]
+
+边上的隐式节点数量为：
+
+    tree.dep[v] - tree.dep[u] - 1
+
+
+7. 在压缩后缀树上自底向上 DP
+
+    for (int i = tree.order.size() - 1; i >= 0; i--)
+    {
+        int x = tree.order[i];
+
+        for (int v : tree.tree[x])
+        {
+            // 用儿子 v 更新 x
+        }
+    }
+
+
+============================================================
+六、压缩后缀树板子
+============================================================
+
+【压缩版代码开始】
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct SuffixTree
+{
+    string s;
+    int n;
+
+    vector<int> sa;
+    vector<int> rk;
+    vector<int> lcp;
+
+    vector<int> dep;
+    vector<int> fa;
+    vector<int> suffix_start;
+    vector<int> represent;
+    vector<int> siz;
+    vector<int> order;
+    vector<vector<int>> tree;
+
+    SuffixTree() {}
+
+    SuffixTree(const string &_s)
+    {
+        build(_s);
+    }
+
+    void buildSA()
+    {
+        sa.resize(n);
+        rk.resize(n);
+
+        vector<int> old(n);
+        vector<int> y(n);
+        vector<int> cnt(max(300LL, n + 5), 0);
+
+        for (int i = 0; i < n; i++)
+        {
+            cnt[(unsigned char)s[i]]++;
+        }
+
+        for (int i = 1; i < 256; i++)
+        {
+            cnt[i] += cnt[i - 1];
+        }
+
+        for (int i = n - 1; i >= 0; i--)
+        {
+            sa[--cnt[(unsigned char)s[i]]] = i;
+        }
+
+        int tot = 1;
+        rk[sa[0]] = 0;
+
+        for (int i = 1; i < n; i++)
+        {
+            if (s[sa[i]] != s[sa[i - 1]])
+            {
+                tot++;
+            }
+
+            rk[sa[i]] = tot - 1;
+        }
+
+        for (int len = 1; len < n && tot < n; len *= 2)
+        {
+            int y_cnt = 0;
+
+            for (int i = n - len; i < n; i++)
+            {
+                y[y_cnt++] = i;
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                if (sa[i] >= len)
+                {
+                    y[y_cnt++] = sa[i] - len;
+                }
+            }
+
+            fill(cnt.begin(), cnt.begin() + tot, 0);
+
+            for (int i = 0; i < n; i++)
+            {
+                cnt[rk[y[i]]]++;
+            }
+
+            for (int i = 1; i < tot; i++)
+            {
+                cnt[i] += cnt[i - 1];
+            }
+
+            for (int i = n - 1; i >= 0; i--)
+            {
+                sa[--cnt[rk[y[i]]]] = y[i];
+            }
+
+            old = rk;
+            tot = 1;
+            rk[sa[0]] = 0;
+
+            for (int i = 1; i < n; i++)
+            {
+                int x = sa[i - 1];
+                int y = sa[i];
+
+                if (old[x] != old[y])
+                {
+                    tot++;
+                }
+                else
+                {
+                    int x_nxt = (x + len < n ? old[x + len] : -1);
+                    int y_nxt = (y + len < n ? old[y + len] : -1);
+
+                    if (x_nxt != y_nxt)
+                    {
+                        tot++;
+                    }
+                }
+
+                rk[y] = tot - 1;
+            }
+        }
+    }
+
+    void buildLCP()
+    {
+        lcp.assign(n, 0);
+
+        for (int i = 0; i < n; i++)
+        {
+            rk[sa[i]] = i;
+        }
+
+        int len = 0;
+
+        for (int i = 0; i < n; i++)
+        {
+            if (rk[i] == 0)
+            {
+                continue;
+            }
+
+            int j = sa[rk[i] - 1];
+
+            while (i + len < n &&
+                   j + len < n &&
+                   s[i + len] == s[j + len])
+            {
+                len++;
+            }
+
+            lcp[rk[i]] = len;
+
+            if (len > 0)
+            {
+                len--;
+            }
+        }
+    }
+
+    void buildTree()
+    {
+        dep.clear();
+        fa.clear();
+        suffix_start.clear();
+        represent.clear();
+
+        // 0 号节点是根节点，代表空串
+        dep.push_back(0);
+        fa.push_back(-1);
+        suffix_start.push_back(-1);
+        represent.push_back(-1);
+
+        vector<int> stk;
+        stk.push_back(0);
+
+        for (int i = 0; i < n; i++)
+        {
+            int same = lcp[i];
+            int last = -1;
+
+            // 弹出深度大于当前 LCP 的节点
+            while (dep[stk.back()] > same)
+            {
+                last = stk.back();
+                stk.pop_back();
+            }
+
+            // 当前 LCP 深度还没有显式节点，新建一个分叉节点
+            if (dep[stk.back()] < same)
+            {
+                int now = dep.size();
+
+                dep.push_back(same);
+                fa.push_back(stk.back());
+                suffix_start.push_back(-1);
+
+                // sa[i-1] 一定经过这个公共前缀节点
+                represent.push_back(sa[i - 1]);
+
+                // last 原本直接连向更浅的祖先，现在改挂到 now 下
+                fa[last] = now;
+
+                stk.push_back(now);
+            }
+
+            // 为当前后缀建立结尾节点
+            int now = dep.size();
+
+            dep.push_back(n - sa[i]);
+            fa.push_back(stk.back());
+            suffix_start.push_back(sa[i]);
+            represent.push_back(sa[i]);
+
+            stk.push_back(now);
+        }
+
+        int node_cnt = dep.size();
+
+        tree.assign(node_cnt, vector<int>());
+
+        for (int i = 1; i < node_cnt; i++)
+        {
+            tree[fa[i]].push_back(i);
+        }
+
+        order.clear();
+        order.push_back(0);
+
+        for (int i = 0; i < (int)order.size(); i++)
+        {
+            int x = order[i];
+
+            for (int v : tree[x])
+            {
+                order.push_back(v);
+            }
+        }
+
+        // siz[x]：x 子树中后缀起点的数量
+        siz.assign(node_cnt, 0);
+
+        for (int i = node_cnt - 1; i >= 0; i--)
+        {
+            int x = order[i];
+
+            if (suffix_start[x] != -1)
+            {
+                siz[x]++;
+            }
+
+            for (int v : tree[x])
+            {
+                siz[x] += siz[v];
+            }
+        }
+    }
+
+    void build(const string &_s)
+    {
+        s = _s;
+        n = s.size();
+
+        sa.clear();
+        rk.clear();
+        lcp.clear();
+        dep.clear();
+        fa.clear();
+        suffix_start.clear();
+        represent.clear();
+        siz.clear();
+        order.clear();
+        tree.clear();
+
+        if (n == 0)
+        {
+            dep.push_back(0);
+            fa.push_back(-1);
+            suffix_start.push_back(-1);
+            represent.push_back(-1);
+            siz.push_back(0);
+            order.push_back(0);
+            tree.push_back(vector<int>());
+            return;
+        }
+
+        buildSA();
+        buildLCP();
+        buildTree();
+    }
+
+    int countOccurrence(const string &t)
+    {
+        if (t.empty())
+        {
+            return 0;
+        }
+
+        int x = 0;
+        int pos = 0;
+
+        while (pos < (int)t.size())
+        {
+            int v = -1;
+
+            // 同一个节点的不同出边首字符一定不同
+            for (int now : tree[x])
+            {
+                int start = represent[now] + dep[x];
+
+                if (s[start] == t[pos])
+                {
+                    v = now;
+                    break;
+                }
+            }
+
+            if (v == -1)
+            {
+                return 0;
+            }
+
+            for (int d = dep[x]; d < dep[v] && pos < (int)t.size(); d++)
+            {
+                if (s[represent[v] + d] != t[pos])
+                {
+                    return 0;
+                }
+
+                pos++;
+            }
+
+            x = v;
+        }
+
+        // t 即使停在 x 的父边中间，出现次数仍然等于 siz[x]
+        return siz[x];
+    }
+
+    bool haveSubstring(const string &t)
+    {
+        return countOccurrence(t) > 0;
+    }
+
+    int distinctSubstringCount()
+    {
+        int ans = 0;
+
+        for (int i = 1; i < (int)dep.size(); i++)
+        {
+            ans += dep[i] - dep[fa[i]];
+        }
+
+        return ans;
+    }
+
+    string getString(int x)
+    {
+        if (x == 0)
+        {
+            return "";
+        }
+
+        return s.substr(represent[x], dep[x]);
+    }
+
+    string longestRepeatedSubstring(int k)
+    {
+        int id = 0;
+
+        for (int i = 1; i < (int)dep.size(); i++)
+        {
+            if (siz[i] >= k && dep[i] > dep[id])
+            {
+                id = i;
+            }
+        }
+
+        return getString(id);
+    }
+};
+
+【压缩版代码结束】
+
+
+压缩版使用示例：
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    string s;
+    cin >> s;
+
+    SuffixTree tree(s);
+
+    cout << tree.distinctSubstringCount() << "\n";
+
+    string t;
+    cin >> t;
+
+    cout << tree.haveSubstring(t) << "\n";
+    cout << tree.countOccurrence(t) << "\n";
+
+    int k;
+    cin >> k;
+
+    cout << tree.longestRepeatedSubstring(k) << "\n";
+
+    return 0;
+}
+
+
+============================================================
+七、当前 Prefix Codes 题中怎么使用
+============================================================
+
+建立：
+
+    SuffixTree tree(s);
+
+对于一条压缩边 x -> v：
+
+    tree.dep[x]                       父节点字符串长度
+    tree.dep[v]                       儿子节点字符串长度
+    tree.dep[v] - tree.dep[x]         压缩边长度
+    tree.dep[v] - tree.dep[x] - 1     边上的隐式节点数量
+    tree.represent[v]                 该分支任意一个后缀起点
+
+自底向上 DP：
+
+    vector<int> dp(tree.dep.size(), 0);
+
+    for (int i = tree.order.size() - 1; i >= 0; i--)
+    {
+        int x = tree.order[i];
+
+        for (int v : tree.tree[x])
+        {
+            // 根据压缩边 x -> v 更新 dp[x]
+        }
+    }
+
+如果每个后缀起点 i 有一个限制 limit[i]，那么对于边 x -> v，
+可以使用：
+
+    int L = limit[tree.represent[v]];
+
+判断该分支最多能走到多深。
+
+若：
+
+    L >= tree.dep[v]
+
+说明能够完整到达节点 v。
+
+若：
+
+    L < tree.dep[v]
+
+说明在压缩边中间就被截断。
+
+
+============================================================
+八、常见易错点
+============================================================
+
+1. “后缀 Trie”最坏是 O(n^2)，不能处理 5e5。
+
+2. 压缩后缀树只有 O(n) 个显式节点，但一条边可能代表多个不同子串。
+   统计所有不同子串或进行当前题的 DP 时，不能漏掉隐式节点。
+
+3. dep[x] 不是普通树深度，而是节点所代表字符串的长度。
+
+4. 压缩边 u -> v 的边长不是 1，而是：
+
+       dep[v] - dep[u]
+
+5. 没有添加特殊结束字符时，一个后缀的结尾节点可能仍然有儿子。
+   因此不要用 tree[x].empty() 判断它是不是后缀结尾，要看：
+
+       suffix_start[x] != -1
+
+6. represent[x] 只是任选的一个出现位置。
+   节点 x 对应的字符串内容为：
+
+       s.substr(represent[x], dep[x])
+
+7. 单纯做子串查询时，后缀数组二分、KMP 或 SAM 往往更短。
+   后缀树的优势主要在于把全部不同子串的前缀层级压缩成一棵树，
+   方便进行结构性 DP。
+
+8. 本压缩版 SA 使用倍增法，所以总复杂度是 O(n log n)。
+   如果题目卡严格线性复杂度，需要换成 SA-IS 或在线后缀树构造，
+   但一般竞赛题不需要。
+
+
+============================================================
+九、后缀自动机 SAM 是什么
+============================================================
+
+后缀自动机可以在 O(n) 个状态中表示 s 的所有不同子串。
+
+但是必须注意：
+
+    后缀树的一个节点或边上的一个位置，对应一个具体字符串；
+    SAM 的一个状态，通常对应多个子串。
+
+对于 SAM 状态 x，它代表的子串长度范围是：
+
+    len[link[x]] + 1 ... len[x]
+
+这个范围内共有：
+
+    len[x] - len[link[x]]
+
+个不同子串。
+
+这些子串在 s 中出现位置的集合完全相同，因此被合并到同一个状态。
+
+
+SAM 适合：
+
+- 判断一个字符串是不是 s 的子串；
+- 查询一个子串在 s 中出现多少次；
+- 统计不同子串数量；
+- 求至少出现 k 次的最长子串；
+- 求两个字符串的最长公共子串；
+- 在线向字符串末尾添加字符；
+- 按出现位置集合或出现次数进行 DP。
+
+SAM 不适合直接处理：
+
+- 每一个不同子串都要作为独立节点进行前缀关系 DP；
+- 需要直接知道字符串之间的 Trie 祖先关系；
+- 需要在压缩边的每个长度位置分别做决策。
+
+例如当前 Prefix Codes 题要求统计前缀反链，压缩后缀树比 SAM 更自然。
+
+
+============================================================
+十、SAM 常用成员和接口
+============================================================
+
+使用：
+
+    SuffixAutomaton sam(s);
+
+成员：
+
+    sam.st[x].nxt[c]
+        状态 x 加上字符 c 后到达的状态。
+
+    sam.st[x].link
+        x 的后缀链接。
+
+    sam.st[x].len
+        状态 x 能表示的最长字符串长度。
+
+    sam.st[x].cnt
+        状态 x 代表的每个子串在 s 中出现多少次。
+
+    sam.st[x].first_pos
+        状态 x 代表的最长字符串第一次建立时的结束位置。
+
+接口：
+
+    sam.haveSubstring(t)
+        判断 t 是否为 s 的子串。
+
+    sam.countOccurrence(t)
+        查询 t 在 s 中出现多少次。
+
+    sam.distinctSubstringCount()
+        统计 s 有多少个不同非空子串。
+
+    sam.longestRepeatedSubstring(k)
+        返回任意一个至少出现 k 次的最长子串。
+
+    sam.longestCommonSubstring(t)
+        求 s 和 t 的最长公共子串长度。
+
+
+============================================================
+十一、后缀自动机 SAM 板子
+============================================================
+
+默认字符集为小写英文字母。
+
+状态数最多约为 2 * |s|。
+
+构建复杂度：O(n)
+空间复杂度：O(n * 26)
+
+为了在使用 #define int long long 时节省空间，状态内部使用 int32_t。
+
+【SAM 代码开始】
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct SuffixAutomaton
+{
+    struct State
+    {
+        int32_t nxt[26];
+        int32_t link;
+        int32_t len;
+        int32_t cnt;
+        int32_t first_pos;
+
+        State()
+        {
+            memset(nxt, -1, sizeof(nxt));
+            link = -1;
+            len = 0;
+            cnt = 0;
+            first_pos = -1;
+        }
+    };
+
+    string s;
+    vector<State> st;
+    int last;
+
+    SuffixAutomaton() {}
+
+    SuffixAutomaton(const string &_s)
+    {
+        build(_s);
+    }
+
+    void clear()
+    {
+        s.clear();
+        st.clear();
+        st.reserve(2);
+        st.push_back(State());
+        last = 0;
+    }
+
+    void extend(char ch)
+    {
+        int c = ch - 'a';
+
+        int cur = st.size();
+        st.push_back(State());
+
+        st[cur].len = st[last].len + 1;
+        st[cur].cnt = 1;
+        st[cur].first_pos = st[cur].len - 1;
+
+        int p = last;
+
+        while (p != -1 && st[p].nxt[c] == -1)
+        {
+            st[p].nxt[c] = cur;
+            p = st[p].link;
+        }
+
+        if (p == -1)
+        {
+            st[cur].link = 0;
+        }
+        else
+        {
+            int q = st[p].nxt[c];
+
+            if (st[p].len + 1 == st[q].len)
+            {
+                st[cur].link = q;
+            }
+            else
+            {
+                int clone = st.size();
+                st.push_back(st[q]);
+
+                st[clone].len = st[p].len + 1;
+                st[clone].cnt = 0;
+
+                while (p != -1 && st[p].nxt[c] == q)
+                {
+                    st[p].nxt[c] = clone;
+                    p = st[p].link;
+                }
+
+                st[q].link = clone;
+                st[cur].link = clone;
+            }
+        }
+
+        last = cur;
+    }
+
+    void calculateOccurrence()
+    {
+        int mymax = 0;
+
+        for (int i = 0; i < (int)st.size(); i++)
+        {
+            mymax = max(mymax, (int)st[i].len);
+        }
+
+        vector<int> num(mymax + 1, 0);
+        vector<int> order(st.size());
+
+        for (int i = 0; i < (int)st.size(); i++)
+        {
+            num[st[i].len]++;
+        }
+
+        for (int i = 1; i <= mymax; i++)
+        {
+            num[i] += num[i - 1];
+        }
+
+        for (int i = (int)st.size() - 1; i >= 0; i--)
+        {
+            order[--num[st[i].len]] = i;
+        }
+
+        // 从长到短，把出现次数沿后缀链接传给父状态
+        for (int i = (int)order.size() - 1; i > 0; i--)
+        {
+            int x = order[i];
+            int father = st[x].link;
+
+            st[father].cnt += st[x].cnt;
+        }
+    }
+
+    void build(const string &_s)
+    {
+        clear();
+        s = _s;
+        st.reserve(2 * s.size() + 5);
+
+        for (int i = 0; i < (int)s.size(); i++)
+        {
+            extend(s[i]);
+        }
+
+        calculateOccurrence();
+    }
+
+    int getState(const string &t)
+    {
+        if (t.empty())
+        {
+            return -1;
+        }
+
+        int x = 0;
+
+        for (int i = 0; i < (int)t.size(); i++)
+        {
+            int c = t[i] - 'a';
+
+            if (c < 0 || c >= 26 || st[x].nxt[c] == -1)
+            {
+                return -1;
+            }
+
+            x = st[x].nxt[c];
+        }
+
+        return x;
+    }
+
+    bool haveSubstring(const string &t)
+    {
+        return getState(t) != -1;
+    }
+
+    int countOccurrence(const string &t)
+    {
+        int x = getState(t);
+
+        if (x == -1)
+        {
+            return 0;
+        }
+
+        return st[x].cnt;
+    }
+
+    int distinctSubstringCount()
+    {
+        int ans = 0;
+
+        for (int i = 1; i < (int)st.size(); i++)
+        {
+            ans += st[i].len - st[st[i].link].len;
+        }
+
+        return ans;
+    }
+
+    string longestRepeatedSubstring(int k)
+    {
+        int id = 0;
+
+        for (int i = 1; i < (int)st.size(); i++)
+        {
+            if (st[i].cnt >= k && st[i].len > st[id].len)
+            {
+                id = i;
+            }
+        }
+
+        if (id == 0)
+        {
+            return "";
+        }
+
+        int r = st[id].first_pos;
+        int l = r - st[id].len + 1;
+
+        return s.substr(l, st[id].len);
+    }
+
+    int longestCommonSubstring(const string &t)
+    {
+        int x = 0;
+        int len = 0;
+        int ans = 0;
+
+        for (int i = 0; i < (int)t.size(); i++)
+        {
+            int c = t[i] - 'a';
+
+            if (c < 0 || c >= 26)
+            {
+                x = 0;
+                len = 0;
+                continue;
+            }
+
+            while (x != 0 && st[x].nxt[c] == -1)
+            {
+                x = st[x].link;
+                len = st[x].len;
+            }
+
+            if (st[x].nxt[c] != -1)
+            {
+                x = st[x].nxt[c];
+                len++;
+            }
+            else
+            {
+                x = 0;
+                len = 0;
+            }
+
+            ans = max(ans, len);
+        }
+
+        return ans;
+    }
+};
+
+【SAM 代码结束】
+
+
+SAM 使用示例：
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    string s;
+    cin >> s;
+
+    SuffixAutomaton sam(s);
+
+    cout << sam.distinctSubstringCount() << "\n";
+
+    string t;
+    cin >> t;
+
+    cout << sam.haveSubstring(t) << "\n";
+    cout << sam.countOccurrence(t) << "\n";
+    cout << sam.longestCommonSubstring(t) << "\n";
+
+    int k;
+    cin >> k;
+
+    cout << sam.longestRepeatedSubstring(k) << "\n";
+
+    return 0;
+}
+
+
+============================================================
+十二、后缀 Trie、压缩后缀树、SAM 怎么选
+============================================================
+
+1. n 很小，想把每个不同子串直接当节点：
+
+    使用朴素后缀 Trie。
+
+
+2. 需要所有不同子串之间的前缀关系，并在这棵树上 DP：
+
+    使用压缩后缀树。
+
+
+3. 需要统计不同子串数量：
+
+    SA、压缩后缀树、SAM 都能做。
+    只做这一件事时，通常 SAM 或 SA 更简单。
+
+
+4. 判断 t 是否为 s 的子串：
+
+    单次查询：KMP、Z 函数、SA 二分都可以；
+    多次查询：SAM 很方便。
+
+
+5. 查询子串出现次数：
+
+    SAM 很方便；
+    SA 也可以通过二分排名区间完成；
+    压缩后缀树可以用子树后缀数量完成。
+
+
+6. 最长公共子串：
+
+    两个字符串时，SAM 很方便；
+    多个字符串或更复杂限制时，考虑 SA、SAM 扩展做法。
+
+
+7. 至少出现 k 次的最长子串：
+
+    SAM：找 cnt >= k 且 len 最大的状态；
+    后缀树：找 siz >= k 且 dep 最大的节点；
+    SA：使用长度为 k 的后缀窗口和 LCP。
+
+
+8. 像 Prefix Codes 一样，要求选择若干子串且互相不能为前缀：
+
+    使用压缩后缀树。
+
+
+============================================================
+十三、SAM 常见易错点
+============================================================
+
+1. 一个 SAM 状态不是只代表一个子串。
+
+   状态 x 代表长度范围：
+
+       len[link[x]] + 1 ... len[x]
+
+
+2. 每个状态新增的不同子串数量是：
+
+       len[x] - len[link[x]]
+
+
+3. 新建普通状态时 cnt = 1，克隆状态时 cnt = 0。
+
+
+4. 构建结束后必须按照 len 从大到小，把 cnt 沿 link 向上传递，
+   才能得到每个状态的真实出现次数。
+
+
+5. first_pos 是结束位置。
+
+   状态 x 的最长代表串区间为：
+
+       [first_pos[x] - len[x] + 1, first_pos[x]]
+
+
+6. 如果构建完成并统计过 cnt 后，又继续调用 extend，原本的 cnt
+   已经被累加，不能直接再次 calculateOccurrence。
+
+   如果需要真正在线追加字符并随时询问出现次数，要另外维护；
+   当前板子用于一次 build 完成后查询。
+
+
+7. 当前板子默认只有小写英文字母。
+
+   如果字符集很大：
+
+   - 可以先离散化；
+   - 或把 nxt[26] 改成 map / unordered_map；
+   - 但常数和内存会发生变化。
