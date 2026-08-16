@@ -1,0 +1,113 @@
+树哈希通用板子
+
+功能：
+
+给定当前结点 x 和它的父亲 fa，返回以 x 为根、不能走向 fa 的整棵子树的结构哈希。
+
+相同结构的有根树会得到相同哈希。
+
+
+==================================================
+板子
+==================================================
+
+using ull = unsigned long long;
+
+const ull RANDOM =
+    chrono::steady_clock::now().time_since_epoch().count();
+
+ull changeHash(ull x)
+{
+    x += RANDOM + 0x9e3779b97f4a7c15ULL;
+
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    x = x ^ (x >> 31);
+
+    return x;
+}
+
+ull getHash(int x, int fa)
+{
+    // 叶子没有儿子，哈希就是 1
+    ull res = 1;
+
+    for (int i = 0; i < tree[x].size(); i++)
+    {
+        int now = tree[x][i];
+
+        if (now == fa)
+        {
+            continue;
+        }
+
+        ull son_hash = getHash(now, x);
+
+        // 使用加法合并，不受儿子排列顺序影响
+        res += changeHash(son_hash);
+    }
+
+    return res;
+}
+
+
+==================================================
+怎么用
+==================================================
+
+1. 求以 root 为根的整棵树哈希
+
+ull h = getHash(root, 0);
+
+
+2. 求 x 的某个相邻子树哈希
+
+假设 now 与 x 相邻，要计算从 x 走向 now 的那棵子树：
+
+ull h = getHash(now, x);
+
+
+3. 切断边 x-y，分别计算两侧结构
+
+ull left_hash = getHash(x, y);
+ull right_hash = getHash(y, x);
+
+
+4. 统计 x 周围相同结构的子树数量
+
+unordered_map<ull, int> mp;
+
+for (int i = 0; i < tree[x].size(); i++)
+{
+    int now = tree[x][i];
+
+    ull h = getHash(now, x);
+    mp[h]++;
+}
+
+
+==================================================
+需要准备的内容
+==================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int MAXN = 2e5 + 5;
+
+vector<vector<int>> tree(MAXN, vector<int>());
+
+然后直接粘贴上面的 changeHash 和 getHash。
+
+
+==================================================
+注意
+==================================================
+
+1. 这是有根树哈希；传入的 fa 决定哪一条边不能走。
+2. 两棵树比较时必须使用同一个 RANDOM。
+3. 64 位随机哈希存在理论碰撞可能，但竞赛中通常足够。
+4. 递归深度最坏为 O(n)，深链可能爆栈。
+5. 本板子不负责求重心，也不负责无根树同构。
