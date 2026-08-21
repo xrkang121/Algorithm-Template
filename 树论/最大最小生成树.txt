@@ -1,0 +1,789 @@
+最小生成树板子
+================================================================
+
+快速判断：
+
+1. 一般无向带权图，求最小生成树
+   -> Kruskal（默认优先）
+
+2. 图很稠密，n 比较小，m 接近 n^2
+   -> Prim 也很好用
+
+3. 求最大生成树
+   -> Kruskal 把边权从大到小排序
+
+4. 图不连通
+   -> 不存在生成树
+   -> Kruskal 最后选不到 n-1 条边
+
+
+================================================================
+A. Kruskal：最小生成树（推荐默认板子）
+================================================================
+
+/*
+==================== Kruskal 使用说明 ====================
+
+【解决什么】
+无向带权图：
+求最小生成树 MST。
+
+也可以：
+求最大生成树。
+
+
+【初始化】
+
+Kruskal mst(n);
+
+
+【函数】
+
+1.
+mst.addEdge(u, v, w);
+
+作用：
+加入一条无向边。
+
+允许：
+重边。
+
+自环：
+可以加入，但不会被选进生成树。
+
+
+2.
+bool ok = mst.buildMin();
+
+作用：
+构造最小生成树。
+
+返回：
+true
+    -> 图连通，最小生成树存在。
+
+false
+    -> 图不连通，不存在生成树。
+
+
+3.
+bool ok = mst.buildMax();
+
+作用：
+构造最大生成树。
+
+返回：
+true / false 含义同上。
+
+
+【构造成功以后能得到什么】
+
+mst.mst_value
+
+得到：
+生成树总边权。
+
+
+mst.choose_edge
+
+得到：
+被选进生成树的“原图边编号”。
+
+例如：
+
+for (int id : mst.choose_edge)
+{
+    cout << id << "\n";
+}
+
+
+mst.tree
+
+得到：
+真正的生成树邻接表。
+
+格式：
+
+mst.tree[x][i].first
+    -> 相邻点
+
+mst.tree[x][i].second
+    -> 生成树边权
+
+可以直接继续：
+DFS
+LCA
+树链剖分
+树上 DP
+等等。
+
+
+【赛场最常用写法】
+
+Kruskal mst(n);
+
+for (int i = 1; i <= m; i++)
+{
+    int u, v, w;
+    cin >> u >> v >> w;
+
+    mst.addEdge(u, v, w);
+}
+
+if (mst.buildMin() == false)
+{
+    cout << "No MST\n";
+}
+else
+{
+    cout << mst.mst_value << "\n";
+}
+
+
+【你能得到的信息】
+
+mst.buildMin()
+    -> 是否存在最小生成树
+
+mst.mst_value
+    -> 最小生成树总边权
+
+mst.choose_edge
+    -> 选中的原图边编号
+
+mst.tree
+    -> 最小生成树本身
+
+
+【复杂度】
+
+排序：
+O(m log m)
+
+并查集：
+O(m α(n))
+
+总复杂度：
+O(m log m)
+
+
+【注意】
+
+1. Kruskal 用于无向图。
+
+2. 图必须连通才能有生成树。
+
+3. 最后必须选到：
+   n - 1 条边。
+
+4. 重边没问题。
+
+5. 自环不会被选中。
+
+6. 边权可以是负数。
+
+7. 如果要求最大生成树：
+   调 buildMax()。
+
+========================================================
+*/
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct Kruskal
+{
+    struct Edge
+    {
+        int u, v;
+        int w;
+        int id;
+    };
+
+    int n;
+
+    vector<Edge> edges;
+
+    vector<int> fa;
+    vector<int> siz;
+
+    // 生成树总边权
+    int mst_value;
+
+    // 被选中的原图边编号
+    vector<int> choose_edge;
+
+    // 生成树邻接表
+    // tree[x] = {to, w}
+    vector<vector<pair<int, int>>> tree;
+
+    Kruskal(int _n = 0)
+    {
+        init(_n);
+    }
+
+    // 初始化 n 个点
+    void init(int _n)
+    {
+        n = _n;
+
+        edges.clear();
+
+        fa.resize(n + 1);
+        siz.assign(n + 1, 1);
+
+        for (int i = 1; i <= n; i++)
+        {
+            fa[i] = i;
+        }
+
+        mst_value = 0;
+        choose_edge.clear();
+
+        tree.assign(n + 1, vector<pair<int, int>>());
+    }
+
+    // 并查集 find
+    int find(int x)
+    {
+        if (fa[x] == x)
+        {
+            return x;
+        }
+
+        return fa[x] = find(fa[x]);
+    }
+
+    // 并查集合并
+    // 成功合并返回 true
+    // 已经在同一集合返回 false
+    bool join(int x, int y)
+    {
+        x = find(x);
+        y = find(y);
+
+        if (x == y)
+        {
+            return false;
+        }
+
+        if (siz[x] < siz[y])
+        {
+            swap(x, y);
+        }
+
+        fa[y] = x;
+        siz[x] += siz[y];
+
+        return true;
+    }
+
+    // 加一条无向边
+    // id 自动按加入顺序编号：1,2,3...
+    void addEdge(int u, int v, int w)
+    {
+        Edge e;
+
+        e.u = u;
+        e.v = v;
+        e.w = w;
+        e.id = (int)edges.size() + 1;
+
+        edges.push_back(e);
+    }
+
+    // 构造最小生成树
+    // 返回 true：存在
+    // 返回 false：图不连通
+    bool buildMin()
+    {
+        for (int i = 1; i <= n; i++)
+        {
+            fa[i] = i;
+            siz[i] = 1;
+            tree[i].clear();
+        }
+
+        mst_value = 0;
+        choose_edge.clear();
+
+        vector<Edge> now_edge = edges;
+
+        sort(now_edge.begin(), now_edge.end(),
+             [](const Edge &a, const Edge &b)
+             {
+                 return a.w < b.w;
+             });
+
+        for (int i = 0; i < (int)now_edge.size(); i++)
+        {
+            Edge e = now_edge[i];
+
+            if (join(e.u, e.v) == false)
+            {
+                continue;
+            }
+
+            mst_value += e.w;
+
+            choose_edge.push_back(e.id);
+
+            tree[e.u].push_back({e.v, e.w});
+            tree[e.v].push_back({e.u, e.w});
+
+            if ((int)choose_edge.size() == n - 1)
+            {
+                break;
+            }
+        }
+
+        return (int)choose_edge.size() == n - 1;
+    }
+
+    // 构造最大生成树
+    // 返回 true：存在
+    // 返回 false：图不连通
+    bool buildMax()
+    {
+        for (int i = 1; i <= n; i++)
+        {
+            fa[i] = i;
+            siz[i] = 1;
+            tree[i].clear();
+        }
+
+        mst_value = 0;
+        choose_edge.clear();
+
+        vector<Edge> now_edge = edges;
+
+        sort(now_edge.begin(), now_edge.end(),
+             [](const Edge &a, const Edge &b)
+             {
+                 return a.w > b.w;
+             });
+
+        for (int i = 0; i < (int)now_edge.size(); i++)
+        {
+            Edge e = now_edge[i];
+
+            if (join(e.u, e.v) == false)
+            {
+                continue;
+            }
+
+            mst_value += e.w;
+
+            choose_edge.push_back(e.id);
+
+            tree[e.u].push_back({e.v, e.w});
+            tree[e.v].push_back({e.u, e.w});
+
+            if ((int)choose_edge.size() == n - 1)
+            {
+                break;
+            }
+        }
+
+        return (int)choose_edge.size() == n - 1;
+    }
+};
+
+
+/*
+【直接套 main】
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+
+    Kruskal mst(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, w;
+        cin >> u >> v >> w;
+
+        mst.addEdge(u, v, w);
+    }
+
+    if (mst.buildMin() == false)
+    {
+        cout << "No MST\n";
+        return 0;
+    }
+
+    cout << mst.mst_value << "\n";
+
+    // 如果需要选了哪些原图边：
+    //
+    // for (int id : mst.choose_edge)
+    // {
+    //     cout << id << " ";
+    // }
+    //
+    // cout << "\n";
+
+
+    // 如果后面需要在生成树上做题：
+    //
+    // mst.tree
+    //
+    // 就是生成树邻接表。
+    //
+    // mst.tree[x][i].first  = 相邻点
+    // mst.tree[x][i].second = 边权
+
+    return 0;
+}
+*/
+
+
+================================================================
+B. Prim：稠密图最小生成树
+================================================================
+
+/*
+====================== Prim 使用说明 ======================
+
+【什么时候用】
+
+无向带权图，求最小生成树。
+
+尤其适合：
+
+n 不大，
+但是边特别多，
+接近完全图。
+
+邻接矩阵版本复杂度：
+
+O(n^2)
+
+
+【初始化】
+
+Prim prim(n);
+
+
+【函数】
+
+1.
+prim.addEdge(u, v, w);
+
+加入无向边。
+
+如果有重边：
+内部自动保留最小边权。
+
+
+2.
+bool ok = prim.build();
+
+作用：
+构造最小生成树。
+
+返回：
+true
+    -> 图连通，MST 存在。
+
+false
+    -> 图不连通。
+
+
+【成功以后得到】
+
+prim.mst_value
+    -> MST 总边权
+
+prim.father[i]
+    -> 点 i 在构造出的 MST 中的父亲
+
+prim.tree
+    -> 最小生成树邻接表
+
+
+【复杂度】
+
+O(n^2)
+
+空间：
+O(n^2)
+
+
+【什么时候不建议用】
+
+n 很大、m 很稀疏：
+优先 Kruskal。
+
+
+【注意】
+
+1. 这是邻接矩阵 Prim。
+
+2. 无边位置是 INF。
+
+3. 重边自动取最小。
+
+4. 图不连通 build() 返回 false。
+
+==========================================================
+*/
+
+struct Prim
+{
+    int n;
+
+    vector<vector<int>> mymap;
+
+    vector<int> dis;
+    vector<int> vis;
+    vector<int> father;
+
+    int mst_value;
+
+    vector<vector<pair<int, int>>> tree;
+
+    Prim(int _n = 0)
+    {
+        init(_n);
+    }
+
+    // 初始化 n 个点
+    void init(int _n)
+    {
+        n = _n;
+
+        mymap.assign(n + 1, vector<int>(n + 1, (1LL << 62)));
+
+        for (int i = 1; i <= n; i++)
+        {
+            mymap[i][i] = 0;
+        }
+
+        dis.assign(n + 1, (1LL << 62));
+        vis.assign(n + 1, 0);
+        father.assign(n + 1, 0);
+
+        mst_value = 0;
+
+        tree.assign(n + 1, vector<pair<int, int>>());
+    }
+
+    // 加无向边
+    // 重边自动保留最小边权
+    void addEdge(int u, int v, int w)
+    {
+        if (u == v)
+        {
+            return;
+        }
+
+        mymap[u][v] = min(mymap[u][v], w);
+        mymap[v][u] = min(mymap[v][u], w);
+    }
+
+    // 构造最小生成树
+    // 返回 true：存在 MST
+    // 返回 false：图不连通
+    bool build()
+    {
+        const int INF = (1LL << 62);
+
+        for (int i = 1; i <= n; i++)
+        {
+            dis[i] = INF;
+            vis[i] = 0;
+            father[i] = 0;
+            tree[i].clear();
+        }
+
+        mst_value = 0;
+
+        dis[1] = 0;
+
+        for (int i = 1; i <= n; i++)
+        {
+            int x = -1;
+
+            for (int j = 1; j <= n; j++)
+            {
+                if (vis[j])
+                {
+                    continue;
+                }
+
+                if (x == -1 || dis[j] < dis[x])
+                {
+                    x = j;
+                }
+            }
+
+            // 剩下的点已经无法连接
+            if (x == -1 || dis[x] == INF)
+            {
+                return false;
+            }
+
+            vis[x] = 1;
+
+            mst_value += dis[x];
+
+            if (father[x] != 0)
+            {
+                tree[x].push_back({father[x], dis[x]});
+                tree[father[x]].push_back({x, dis[x]});
+            }
+
+            for (int y = 1; y <= n; y++)
+            {
+                if (vis[y])
+                {
+                    continue;
+                }
+
+                if (mymap[x][y] < dis[y])
+                {
+                    dis[y] = mymap[x][y];
+                    father[y] = x;
+                }
+            }
+        }
+
+        return true;
+    }
+};
+
+
+/*
+【直接套 main】
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+
+    Prim prim(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, w;
+        cin >> u >> v >> w;
+
+        prim.addEdge(u, v, w);
+    }
+
+    if (prim.build() == false)
+    {
+        cout << "No MST\n";
+        return 0;
+    }
+
+    cout << prim.mst_value << "\n";
+
+    return 0;
+}
+*/
+
+
+================================================================
+C. 赛场接口速查
+================================================================
+
+------------------------------------------------------------
+Kruskal（默认优先）
+------------------------------------------------------------
+
+Kruskal mst(n);
+
+mst.addEdge(u, v, w);
+    -> 加无向边
+
+mst.buildMin();
+    -> 构造最小生成树
+    -> 返回是否存在
+
+mst.buildMax();
+    -> 构造最大生成树
+    -> 返回是否存在
+
+mst.mst_value
+    -> 生成树总权值
+
+mst.choose_edge
+    -> 被选中的原图边编号
+
+mst.tree
+    -> 生成树邻接表
+
+
+------------------------------------------------------------
+Prim（稠密图）
+------------------------------------------------------------
+
+Prim prim(n);
+
+prim.addEdge(u, v, w);
+    -> 加无向边
+
+prim.build();
+    -> 构造最小生成树
+    -> 返回是否存在
+
+prim.mst_value
+    -> MST 总权值
+
+prim.father[i]
+    -> MST 中 i 的父亲
+
+prim.tree
+    -> MST 邻接表
+
+
+================================================================
+D. 最后只看这些坑
+================================================================
+
+1. MST 是无向图。
+
+2. 图不连通：
+   不存在生成树。
+
+3. Kruskal 最后必须选中 n-1 条边。
+
+4. Kruskal 默认按边权从小到大。
+
+5. 最大生成树：
+   按边权从大到小。
+
+6. 重边：
+   Kruskal 不怕。
+   Prim 邻接矩阵取最小。
+
+7. 自环：
+   不会进入 MST。
+
+8. 边权可以是负数。
+
+9. 一般稀疏图：
+   Kruskal。
+
+10. 稠密图 / 完全图 / n 较小：
+    Prim O(n^2)。
+
+11. 如果建完 MST 后还要：
+    LCA / 树链剖分 / 树上 DP
+
+    直接使用：
+    mst.tree
+    或
+    prim.tree
