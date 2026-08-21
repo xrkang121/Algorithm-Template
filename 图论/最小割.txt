@@ -1,0 +1,1380 @@
+最小割板子（赛场直接抄｜统一接口注释版）
+================================================================
+快速选板子：
+
+1. 指定 s、t 的最小割 / 最大流
+   -> Dinic
+
+2. 无向图，不指定 s、t，求全局最小割
+   -> Stoer-Wagner
+
+3. 无向图，很多次询问任意两点最小割
+   -> Gomory-Hu Tree
+
+4. 删除点使 s、t 不连通
+   -> 拆点 + Dinic
+
+5. 每个点二选一 / 分到不同阵营有代价
+   -> 最小割建模 + Dinic
+
+6. 选项目有收益，且有“选 u 必须选 v”
+   -> 最大权闭合子图 + Dinic
+
+
+================================================================
+A. Dinic：指定 s-t 最小割 / 最大流
+================================================================
+
+/*
+==================== Dinic 使用说明 ====================
+
+【解决什么】
+指定源点 s、汇点 t：
+1. 求最大流
+2. 求 s-t 最小割
+3. 求一个最小割的两侧点集
+
+【初始化】
+Dinic dinic(n);
+
+【函数】
+
+1.
+dinic.addEdge(u, v, cap);
+
+作用：
+加入一条有向边 u -> v，容量 cap。
+
+
+2.
+dinic.addUndirectedEdge(u, v, cap);
+
+作用：
+加入一条无向边 u <-> v，割开 u,v 的代价为 cap。
+
+
+3.
+int flow = dinic.maxflow(s, t);
+
+得到：
+s -> t 最大流。
+
+根据最大流最小割：
+flow 同时也是 s-t 最小割的权值。
+
+
+4.
+vector<int> side = dinic.getCutSide(s);
+
+调用要求：
+必须先调用 maxflow(s,t)。
+
+得到：
+side[i] == 1：
+    点 i 在最小割中 s 所在的一侧。
+
+side[i] == 0：
+    点 i 在另一侧。
+
+如果题目要求输出最小割点集，就用这个。
+
+
+【赛场最常用写法】
+
+Dinic dinic(n);
+
+for (...)
+{
+    dinic.addEdge(u, v, w);
+}
+
+int ans = dinic.maxflow(s, t);
+
+
+【你需要改什么】
+1. n
+2. 输入
+3. 有向边还是无向边
+4. s、t
+5. INF 是否足够大
+
+
+【注意】
+1. cap 必须非负。
+2. 重边可以直接重复 addEdge。
+3. 自环一般直接忽略。
+4. maxflow 跑完以后，图已经变成残量网络。
+5. 如果需要重新跑另一组最大流，重新建 Dinic。
+6. 如果需要最小割两侧，先 maxflow，再 getCutSide。
+=======================================================
+*/
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = (1LL << 62);
+
+struct Dinic
+{
+    struct Edge
+    {
+        int to;
+        int rev;
+        int cap;
+    };
+
+    int n;
+
+    vector<vector<Edge>> mymap;
+    vector<int> level;
+    vector<int> cur;
+
+    Dinic(int _n = 0)
+    {
+        init(_n);
+    }
+
+    // 初始化 n 个点
+    void init(int _n)
+    {
+        n = _n;
+
+        mymap.assign(n + 1, vector<Edge>());
+        level.assign(n + 1, -1);
+        cur.assign(n + 1, 0);
+    }
+
+    // 加有向边 u -> v
+    void addEdge(int u, int v, int cap)
+    {
+        Edge a = {v, (int)mymap[v].size(), cap};
+        Edge b = {u, (int)mymap[u].size(), 0};
+
+        mymap[u].push_back(a);
+        mymap[v].push_back(b);
+    }
+
+    // 加无向边 u <-> v
+    void addUndirectedEdge(int u, int v, int cap)
+    {
+        addEdge(u, v, cap);
+        addEdge(v, u, cap);
+    }
+
+    bool bfs(int s, int t)
+    {
+        fill(level.begin(), level.end(), -1);
+
+        queue<int> q;
+
+        level[s] = 0;
+        q.push(s);
+
+        while (!q.empty())
+        {
+            int x = q.front();
+            q.pop();
+
+            for (int i = 0; i < (int)mymap[x].size(); i++)
+            {
+                Edge &e = mymap[x][i];
+
+                if (e.cap > 0 && level[e.to] == -1)
+                {
+                    level[e.to] = level[x] + 1;
+                    q.push(e.to);
+                }
+            }
+        }
+
+        return level[t] != -1;
+    }
+
+    int dfs(int x, int t, int flow)
+    {
+        if (x == t)
+        {
+            return flow;
+        }
+
+        for (int &i = cur[x]; i < (int)mymap[x].size(); i++)
+        {
+            Edge &e = mymap[x][i];
+
+            if (e.cap <= 0)
+            {
+                continue;
+            }
+
+            if (level[e.to] != level[x] + 1)
+            {
+                continue;
+            }
+
+            int now = dfs(e.to, t, min(flow, e.cap));
+
+            if (now == 0)
+            {
+                continue;
+            }
+
+            e.cap -= now;
+            mymap[e.to][e.rev].cap += now;
+
+            return now;
+        }
+
+        return 0;
+    }
+
+    // 返回 s -> t 最大流
+    // 同时等于 s-t 最小割权值
+    int maxflow(int s, int t)
+    {
+        int ans = 0;
+
+        while (bfs(s, t))
+        {
+            fill(cur.begin(), cur.end(), 0);
+
+            while (1)
+            {
+                int now = dfs(s, t, INF);
+
+                if (now == 0)
+                {
+                    break;
+                }
+
+                ans += now;
+            }
+        }
+
+        return ans;
+    }
+
+    // 必须在 maxflow 后调用
+    // 返回一个最小割中 s 所在的一侧
+    vector<int> getCutSide(int s)
+    {
+        vector<int> vis(n + 1, 0);
+
+        queue<int> q;
+        q.push(s);
+        vis[s] = 1;
+
+        while (!q.empty())
+        {
+            int x = q.front();
+            q.pop();
+
+            for (int i = 0; i < (int)mymap[x].size(); i++)
+            {
+                Edge &e = mymap[x][i];
+
+                if (e.cap > 0 && vis[e.to] == 0)
+                {
+                    vis[e.to] = 1;
+                    q.push(e.to);
+                }
+            }
+        }
+
+        return vis;
+    }
+};
+
+
+/*
+【直接套 main】
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, s, t;
+    cin >> n >> m >> s >> t;
+
+    Dinic dinic(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, w;
+        cin >> u >> v >> w;
+
+        // 有向边
+        dinic.addEdge(u, v, w);
+
+        // 如果是无向边：
+        // dinic.addUndirectedEdge(u, v, w);
+    }
+
+    int ans = dinic.maxflow(s, t);
+
+    cout << ans << "\n";
+
+    // 如果还需要最小割点集：
+    //
+    // vector<int> side = dinic.getCutSide(s);
+    //
+    // side[i] == 1：s 侧
+    // side[i] == 0：另一侧
+
+    return 0;
+}
+*/
+
+
+================================================================
+B. Stoer-Wagner：无向图全局最小割
+================================================================
+
+/*
+================ Stoer-Wagner 使用说明 ================
+
+【解决什么】
+无向图，不指定 s,t。
+
+把所有点划分成两个非空集合 S、T，
+求所有跨 S-T 的边权之和的最小值。
+
+也就是：
+删除最小总边权，使无向图不连通。
+
+
+【复杂度】
+O(n^3)
+空间 O(n^2)
+
+通常：
+n <= 500~700 左右考虑。
+
+
+【初始化】
+StoerWagner sw(n);
+
+
+【函数】
+
+1.
+sw.addEdge(u, v, w);
+
+作用：
+加入一条无向边。
+
+支持重边：
+函数内部自动累加。
+
+自环：
+函数内部自动忽略。
+
+
+2.
+int ans = sw.minCut();
+
+得到：
+整个无向图的全局最小割权值。
+
+
+3.
+vector<int> side = sw.getCutSide();
+
+调用要求：
+先调用 minCut()。
+
+得到：
+一个全局最小割的其中一侧有哪些“原始点”。
+
+side 中直接保存点编号。
+
+
+【赛场最常用写法】
+
+StoerWagner sw(n);
+
+for (...)
+{
+    sw.addEdge(u, v, w);
+}
+
+int ans = sw.minCut();
+
+
+【你能得到的信息】
+
+sw.minCut()
+    -> 全局最小割权值
+
+sw.getCutSide()
+    -> 一个最小割的一侧点集
+
+
+【你需要改什么】
+基本只改：
+1. n
+2. 输入
+
+
+【注意】
+1. 只适用于无向图。
+2. 边权必须非负。
+3. 重边会自动累加。
+4. 自环自动忽略。
+5. 图本身不连通时，答案为 0。
+6. 内部会缩点并修改矩阵。
+7. 一个对象正常只调用一次 minCut()。
+8. dis 是“到当前已选集合的总边权”，不是最短路。
+9. 算法内部每次选 dis 最大的点。
+=======================================================
+*/
+
+struct StoerWagner
+{
+    int n;
+
+    vector<vector<int>> mymap;
+
+    vector<int> point;
+    vector<int> dis;
+    vector<int> vis;
+
+    vector<vector<int>> group_point;
+
+    vector<int> mincut_point;
+
+    StoerWagner(int _n = 0)
+    {
+        init(_n);
+    }
+
+    // 初始化 n 个点
+    void init(int _n)
+    {
+        n = _n;
+
+        mymap.assign(n + 1, vector<int>(n + 1, 0));
+
+        point.assign(n + 1, 0);
+        dis.assign(n + 1, 0);
+        vis.assign(n + 1, 0);
+
+        group_point.assign(n + 1, vector<int>());
+        mincut_point.clear();
+    }
+
+    // 加无向边
+    // 重边自动累加
+    // 自环自动忽略
+    void addEdge(int u, int v, int w)
+    {
+        if (u == v)
+        {
+            return;
+        }
+
+        mymap[u][v] += w;
+        mymap[v][u] += w;
+    }
+
+    // 返回无向图全局最小割权值
+    int minCut()
+    {
+        int cnt = n;
+
+        for (int i = 1; i <= n; i++)
+        {
+            point[i] = i;
+
+            group_point[i].clear();
+            group_point[i].push_back(i);
+        }
+
+        mincut_point.clear();
+
+        int ans = INF;
+
+        while (cnt > 1)
+        {
+            for (int i = 1; i <= cnt; i++)
+            {
+                int x = point[i];
+
+                dis[x] = 0;
+                vis[x] = 0;
+            }
+
+            int s = -1;
+            int t = -1;
+
+            for (int i = 1; i <= cnt; i++)
+            {
+                int x = -1;
+
+                for (int j = 1; j <= cnt; j++)
+                {
+                    int now = point[j];
+
+                    if (vis[now])
+                    {
+                        continue;
+                    }
+
+                    if (x == -1 || dis[now] > dis[x])
+                    {
+                        x = now;
+                    }
+                }
+
+                vis[x] = 1;
+
+                s = t;
+                t = x;
+
+                // 最后加入的点 t
+                if (i == cnt)
+                {
+                    if (dis[t] < ans)
+                    {
+                        ans = dis[t];
+                        mincut_point = group_point[t];
+                    }
+
+                    if (ans == 0)
+                    {
+                        return 0;
+                    }
+
+                    // t 合并进 s
+                    for (int j = 1; j <= cnt; j++)
+                    {
+                        int now = point[j];
+
+                        if (now == s || now == t)
+                        {
+                            continue;
+                        }
+
+                        mymap[s][now] += mymap[t][now];
+                        mymap[now][s] = mymap[s][now];
+                    }
+
+                    for (int j = 0; j < (int)group_point[t].size(); j++)
+                    {
+                        group_point[s].push_back(group_point[t][j]);
+                    }
+
+                    group_point[t].clear();
+
+                    // 删除超级点 t
+                    for (int j = 1; j <= cnt; j++)
+                    {
+                        if (point[j] == t)
+                        {
+                            point[j] = point[cnt];
+                            break;
+                        }
+                    }
+
+                    cnt--;
+
+                    break;
+                }
+
+                // 更新未选点与已选集合的总边权
+                for (int j = 1; j <= cnt; j++)
+                {
+                    int now = point[j];
+
+                    if (vis[now])
+                    {
+                        continue;
+                    }
+
+                    dis[now] += mymap[x][now];
+                }
+            }
+        }
+
+        return ans;
+    }
+
+    // 必须先调用 minCut()
+    // 返回一个全局最小割的其中一侧
+    vector<int> getCutSide()
+    {
+        return mincut_point;
+    }
+};
+
+
+/*
+【直接套 main】
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+
+    StoerWagner sw(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, w;
+        cin >> u >> v >> w;
+
+        sw.addEdge(u, v, w);
+    }
+
+    int ans = sw.minCut();
+
+    cout << ans << "\n";
+
+    // 如果需要一个最小割的一侧：
+    //
+    // vector<int> side = sw.getCutSide();
+    //
+    // for (int x : side)
+    // {
+    //     cout << x << " ";
+    // }
+
+    return 0;
+}
+*/
+
+
+================================================================
+C. Gomory-Hu Tree：无向图所有点对最小割
+================================================================
+
+/*
+================ Gomory-Hu 使用说明 ====================
+
+【解决什么】
+无向图中有很多询问：
+
+lambda(u,v) =
+把 u 和 v 分开的最小割权值。
+
+如果要问很多对点：
+用 Gomory-Hu Tree。
+
+
+【得到什么】
+构造一棵 n 个点的树。
+
+性质：
+原图中 u-v 最小割
+=
+这棵树上 u 到 v 路径中的最小边权。
+
+
+【复杂度】
+需要 n-1 次最大流。
+
+适合：
+n 不太大，但查询很多。
+
+
+【初始化】
+GomoryHu gh(n);
+
+
+【函数】
+
+1.
+gh.addEdge(u, v, w);
+
+作用：
+加入无向边。
+
+允许重边。
+自环自动忽略。
+
+
+2.
+gh.build();
+
+作用：
+构造 Gomory-Hu Tree。
+
+调用后可以得到：
+gh.tree
+
+其中：
+gh.tree[u] 里面是 {v, w}
+
+表示最小割树有一条：
+u - v，边权 w。
+
+
+3.
+gh.buildLCA();
+
+作用：
+对已经建好的 Gomory-Hu Tree 做倍增预处理。
+
+如果之后要多次 query，
+build() 后调用一次。
+
+
+4.
+int ans = gh.query(u, v);
+
+调用要求：
+先：
+gh.build();
+gh.buildLCA();
+
+得到：
+原图中 u-v 最小割权值。
+
+
+【赛场最常用写法】
+
+GomoryHu gh(n);
+
+for (...)
+{
+    gh.addEdge(u, v, w);
+}
+
+gh.build();
+gh.buildLCA();
+
+while (q--)
+{
+    cin >> u >> v;
+    cout << gh.query(u, v) << "\n";
+}
+
+
+【你能得到的信息】
+
+gh.tree
+    -> 完整 Gomory-Hu 最小割树
+
+gh.query(u,v)
+    -> 原图 u-v 最小割权值
+
+gh.fa / gh.cut
+    -> 最小割树的父亲关系和对应树边权
+
+
+【注意】
+1. 只用于无向图。
+2. 每次最大流内部都会重新建原图。
+3. query 是树上“路径最小边”，不是路径和。
+4. 只求一次全局最小割时不要用它，直接 Stoer-Wagner。
+=======================================================
+*/
+
+struct GomoryHu
+{
+    static const int LOG = 22;
+
+    int n;
+
+    vector<tuple<int, int, int>> edges;
+
+    vector<int> fa;
+    vector<int> cut;
+
+    vector<vector<pair<int, int>>> tree;
+
+    vector<int> depth;
+    vector<array<int, LOG + 1>> up;
+    vector<array<int, LOG + 1>> mn;
+
+    GomoryHu(int _n = 0)
+    {
+        init(_n);
+    }
+
+    // 初始化 n 个点
+    void init(int _n)
+    {
+        n = _n;
+
+        edges.clear();
+
+        fa.assign(n + 1, 0);
+        cut.assign(n + 1, 0);
+
+        tree.assign(n + 1, vector<pair<int, int>>());
+
+        depth.assign(n + 1, 0);
+        up.assign(n + 1, {});
+        mn.assign(n + 1, {});
+    }
+
+    // 加无向边
+    void addEdge(int u, int v, int w)
+    {
+        if (u == v)
+        {
+            return;
+        }
+
+        edges.push_back({u, v, w});
+    }
+
+    // 构造 Gomory-Hu Tree
+    // 结果保存在 tree、fa、cut
+    void build()
+    {
+        for (int i = 1; i <= n; i++)
+        {
+            fa[i] = 0;
+            cut[i] = 0;
+            tree[i].clear();
+        }
+
+        for (int i = 2; i <= n; i++)
+        {
+            fa[i] = 1;
+        }
+
+        for (int s = 2; s <= n; s++)
+        {
+            int t = fa[s];
+
+            Dinic dinic(n);
+
+            for (int i = 0; i < (int)edges.size(); i++)
+            {
+                int u, v, w;
+                tie(u, v, w) = edges[i];
+
+                dinic.addUndirectedEdge(u, v, w);
+            }
+
+            int flow = dinic.maxflow(s, t);
+
+            vector<int> side = dinic.getCutSide(s);
+
+            for (int i = s + 1; i <= n; i++)
+            {
+                if (fa[i] == t && side[i])
+                {
+                    fa[i] = s;
+                }
+            }
+
+            if (t != 1 && side[fa[t]])
+            {
+                fa[s] = fa[t];
+                fa[t] = s;
+
+                cut[s] = cut[t];
+                cut[t] = flow;
+            }
+            else
+            {
+                cut[s] = flow;
+            }
+        }
+
+        for (int i = 2; i <= n; i++)
+        {
+            tree[i].push_back({fa[i], cut[i]});
+            tree[fa[i]].push_back({i, cut[i]});
+        }
+    }
+
+    // 对 Gomory-Hu Tree 做 LCA 预处理
+    // build() 后调用
+    void buildLCA()
+    {
+        for (int i = 0; i <= n; i++)
+        {
+            depth[i] = 0;
+
+            for (int j = 0; j <= LOG; j++)
+            {
+                up[i][j] = 0;
+                mn[i][j] = INF;
+            }
+        }
+
+        queue<int> q;
+
+        depth[1] = 1;
+        up[1][0] = 0;
+        mn[1][0] = INF;
+
+        q.push(1);
+
+        while (!q.empty())
+        {
+            int x = q.front();
+            q.pop();
+
+            for (int i = 0; i < (int)tree[x].size(); i++)
+            {
+                int to = tree[x][i].first;
+                int w = tree[x][i].second;
+
+                if (to == up[x][0])
+                {
+                    continue;
+                }
+
+                depth[to] = depth[x] + 1;
+                up[to][0] = x;
+                mn[to][0] = w;
+
+                for (int j = 1; j <= LOG; j++)
+                {
+                    up[to][j] = up[up[to][j - 1]][j - 1];
+
+                    mn[to][j] = min(
+                        mn[to][j - 1],
+                        mn[up[to][j - 1]][j - 1]
+                    );
+                }
+
+                q.push(to);
+            }
+        }
+    }
+
+    // 查询原图中 u-v 最小割权值
+    // 必须先 build() + buildLCA()
+    int query(int u, int v)
+    {
+        if (u == v)
+        {
+            return INF;
+        }
+
+        int ans = INF;
+
+        if (depth[u] < depth[v])
+        {
+            swap(u, v);
+        }
+
+        for (int j = LOG; j >= 0; j--)
+        {
+            if (depth[up[u][j]] >= depth[v])
+            {
+                ans = min(ans, mn[u][j]);
+                u = up[u][j];
+            }
+        }
+
+        if (u == v)
+        {
+            return ans;
+        }
+
+        for (int j = LOG; j >= 0; j--)
+        {
+            if (up[u][j] != up[v][j])
+            {
+                ans = min(ans, mn[u][j]);
+                ans = min(ans, mn[v][j]);
+
+                u = up[u][j];
+                v = up[v][j];
+            }
+        }
+
+        ans = min(ans, mn[u][0]);
+        ans = min(ans, mn[v][0]);
+
+        return ans;
+    }
+};
+
+
+/*
+【直接套 main】
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, q;
+    cin >> n >> m >> q;
+
+    GomoryHu gh(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, w;
+        cin >> u >> v >> w;
+
+        gh.addEdge(u, v, w);
+    }
+
+    gh.build();
+    gh.buildLCA();
+
+    while (q--)
+    {
+        int u, v;
+        cin >> u >> v;
+
+        cout << gh.query(u, v) << "\n";
+    }
+
+    return 0;
+}
+*/
+
+
+================================================================
+D. 点割：删除点使 s-t 不连通
+================================================================
+
+/*
+==================== 点割使用说明 ======================
+
+【解决什么】
+删除点 i 的代价为 cost[i]，
+求让 s、t 不连通的最小删除总代价。
+
+
+【做法】
+每个点 i 拆成：
+
+i_in  = i
+i_out = i + n
+
+连：
+
+i_in -> i_out
+容量 = cost[i]
+
+如果 i 不能删除：
+容量设 INF。
+
+
+原图有向边：
+u -> v
+
+变成：
+u_out -> v_in
+容量 INF
+
+
+原图无向边：
+u - v
+
+变成：
+u_out -> v_in  INF
+v_out -> u_in  INF
+
+
+最后跑 Dinic。
+
+
+【你能得到】
+dinic.maxflow(...)
+    -> 最小删点代价
+
+dinic.getCutSide(...)
+    -> 如果需要，还能继续分析割在哪些拆点边上。
+
+
+【最常见代码】
+*/
+
+Dinic dinic(2 * n);
+
+for (int i = 1; i <= n; i++)
+{
+    int cap = cost[i];
+
+    if (i == s || i == t)
+    {
+        cap = INF;
+    }
+
+    dinic.addEdge(i, i + n, cap);
+}
+
+// 有向原图：
+for (...)
+{
+    dinic.addEdge(u + n, v, INF);
+}
+
+// 无向原图：
+// dinic.addEdge(u + n, v, INF);
+// dinic.addEdge(v + n, u, INF);
+
+int ans = dinic.maxflow(s + n, t);
+
+
+================================================================
+E. 二选一 / 两类划分最小代价
+================================================================
+
+/*
+=================== 二选一建模说明 =====================
+
+【解决什么】
+每个点 i 必须选择 A 或 B。
+
+选 A 的代价：
+a[i]
+
+选 B 的代价：
+b[i]
+
+如果两个点分在不同侧，
+还可能额外付代价 w。
+
+
+【建图】
+
+S -> i
+容量 b[i]
+
+i -> T
+容量 a[i]
+
+
+解释：
+i 在 S 侧：
+    割 i->T
+    支付 a[i]
+
+i 在 T 侧：
+    割 S->i
+    支付 b[i]
+
+
+如果 u,v 分在不同侧需要付 w：
+
+dinic.addUndirectedEdge(u, v, w);
+
+
+【你能得到】
+
+dinic.maxflow(S,T)
+    -> 最小总代价
+
+dinic.getCutSide(S)
+    -> 每个点最终选 A 还是 B
+
+side[i] == 1：
+    i 在 S 侧 -> 选 A
+
+side[i] == 0：
+    i 在 T 侧 -> 选 B
+*/
+
+
+int S = n + 1;
+int T = n + 2;
+
+Dinic dinic(n + 2);
+
+for (int i = 1; i <= n; i++)
+{
+    dinic.addEdge(S, i, b[i]);
+    dinic.addEdge(i, T, a[i]);
+}
+
+// u,v 不同侧额外付 w
+dinic.addUndirectedEdge(u, v, w);
+
+int ans = dinic.maxflow(S, T);
+
+vector<int> side = dinic.getCutSide(S);
+
+
+================================================================
+F. 最大权闭合子图
+================================================================
+
+/*
+================ 最大权闭合子图使用说明 =================
+
+【解决什么】
+每个点有收益 / 代价 val[i]。
+
+并且存在依赖：
+
+选 u 必须选 v。
+
+要求：
+满足所有依赖的前提下，
+最大化最终总收益。
+
+
+【建图】
+
+val[i] > 0：
+S -> i
+容量 val[i]
+
+val[i] < 0：
+i -> T
+容量 -val[i]
+
+依赖：
+选 u 必须选 v
+
+u -> v
+容量 INF
+
+
+设：
+sum = 所有正权 val[i] 之和
+
+答案：
+sum - dinic.maxflow(S,T)
+
+
+【你能得到】
+
+sum - maxflow
+    -> 最大收益
+
+dinic.getCutSide(S)
+    -> 最终选择了哪些点
+
+side[i] == 1：
+    选择 i
+
+side[i] == 0：
+    不选择 i
+*/
+
+
+int S = n + 1;
+int T = n + 2;
+
+Dinic dinic(n + 2);
+
+int sum = 0;
+
+for (int i = 1; i <= n; i++)
+{
+    if (val[i] > 0)
+    {
+        sum += val[i];
+
+        dinic.addEdge(S, i, val[i]);
+    }
+    else if (val[i] < 0)
+    {
+        dinic.addEdge(i, T, -val[i]);
+    }
+}
+
+// 选 u 必须选 v
+dinic.addEdge(u, v, INF);
+
+int flow = dinic.maxflow(S, T);
+
+int ans = sum - flow;
+
+vector<int> side = dinic.getCutSide(S);
+
+
+================================================================
+G. 赛场接口速查
+================================================================
+
+------------------------------------------------------------
+Dinic
+------------------------------------------------------------
+
+Dinic dinic(n);
+
+dinic.addEdge(u,v,w);
+    -> 加有向边
+
+dinic.addUndirectedEdge(u,v,w);
+    -> 加无向边
+
+dinic.maxflow(s,t);
+    -> 得最大流
+    -> 同时得到 s-t 最小割权值
+
+dinic.getCutSide(s);
+    -> maxflow 后调用
+    -> 得一个最小割中 s 所在侧
+
+
+------------------------------------------------------------
+Stoer-Wagner
+------------------------------------------------------------
+
+StoerWagner sw(n);
+
+sw.addEdge(u,v,w);
+    -> 加无向边
+
+sw.minCut();
+    -> 得全局最小割权值
+
+sw.getCutSide();
+    -> minCut 后调用
+    -> 得一个全局最小割的一侧
+
+
+------------------------------------------------------------
+Gomory-Hu
+------------------------------------------------------------
+
+GomoryHu gh(n);
+
+gh.addEdge(u,v,w);
+    -> 加无向边
+
+gh.build();
+    -> 建最小割树
+    -> 结果在 gh.tree
+
+gh.buildLCA();
+    -> 多次查询前预处理
+
+gh.query(u,v);
+    -> 得原图 u-v 最小割权值
+
+
+================================================================
+H. 最后只看这些坑
+================================================================
+
+1. 指定 s,t
+   -> Dinic
+
+2. 无向全局最小割
+   -> Stoer-Wagner
+
+3. 无向所有点对最小割
+   -> Gomory-Hu
+
+4. 点割
+   -> 拆点 + Dinic
+
+5. Dinic 跑完会修改容量。
+
+6. getCutSide 必须在 maxflow 后调用。
+
+7. Stoer-Wagner 只用于无向图。
+
+8. Stoer-Wagner 重边累加，自环忽略。
+
+9. Gomory-Hu 只用于无向图。
+
+10. Gomory-Hu 查询的是树上路径最小边，不是路径和。
+
+11. INF 必须比所有正常方案的总代价大。
+
+12. 容量 / 总答案可能很大时用 long long。
