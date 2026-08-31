@@ -1,0 +1,431 @@
+适用场景：
+1. O(1) 判断两个等长子串是否相等
+2. Hash + 二分求任意两个后缀的 LCP
+3. 正串 + 反串 Hash，O(1) 判断某个子串是否为回文
+4. 二分答案 + 子串比较
+5. 重复子串 / 周期 / 字符串拼接合法性判断
+
+选择建议：
+- 单模 Hash：
+  代码最短，平时普通题够用。
+  如果题目明显会卡 Hash，或者答案完全依赖 Hash 正确性，不建议只用单模。
+
+- ULL Hash：
+  不需要取模，代码短，常数小。
+  unsigned long long 会自然模 2^64。
+  平时比赛很好用，但理论上仍然会碰撞。
+
+- 双模 Hash：
+  最稳。
+  题目明显卡 Hash、对碰撞敏感、或者你想更放心时使用。
+  码量比单模稍高。
+
+统一约定：
+- 字符串 s 使用 0-based。
+- Hash 查询接口使用 1-based 区间 [l, r]。
+- build(s) 时用 s[i - 1]。
+- 两个子串比较前，最好先判断长度是否相同。
+- Hash 只能认为“极高概率相等”，不是数学上绝对无碰撞。
+
+============================================================
+一、单模 Hash
+============================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int mod = 1000000007;
+const int base = 131;
+const int MAXN = 2e5 + 5;
+
+vector<int> Hash(MAXN);
+vector<int> power_base(MAXN);
+
+void buildHash(const string &s)
+{
+    int n = s.size();
+
+    power_base[0] = 1;
+
+    for (int i = 1; i <= n; i++)
+    {
+        power_base[i] = power_base[i - 1] * base % mod;
+
+        Hash[i] = (Hash[i - 1] * base + (unsigned char)s[i - 1] + 1) % mod;
+    }
+}
+
+// 查询 s[l...r] 的 Hash
+// l, r 为 1-based
+int getHash(int l, int r)
+{
+    int res = Hash[r] - Hash[l - 1] * power_base[r - l + 1] % mod;
+
+    res %= mod;
+
+    if (res < 0)
+    {
+        res += mod;
+    }
+
+    return res;
+}
+
+/*
+使用：
+
+string s;
+cin >> s;
+
+buildHash(s);
+
+int h = getHash(l, r);
+
+判断两个等长子串是否相等：
+
+if (r1 - l1 == r2 - l2 &&
+    getHash(l1, r1) == getHash(l2, r2))
+{
+    // 认为相等
+}
+*/
+
+============================================================
+二、ULL Hash
+============================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+using ull = unsigned long long;
+
+const ull base = 131;
+const int MAXN = 2e5 + 5;
+
+vector<ull> Hash(MAXN);
+vector<ull> power_base(MAXN);
+
+void buildHash(const string &s)
+{
+    int n = s.size();
+
+    power_base[0] = 1;
+
+    for (int i = 1; i <= n; i++)
+    {
+        power_base[i] = power_base[i - 1] * base;
+
+        Hash[i] = Hash[i - 1] * base + (unsigned char)s[i - 1] + 1;
+    }
+}
+
+// 查询 s[l...r] 的 Hash
+// l, r 为 1-based
+ull getHash(int l, int r)
+{
+    return Hash[r] - Hash[l - 1] * power_base[r - l + 1];
+}
+
+/*
+特点：
+
+1. 不需要 mod
+2. unsigned long long 自然溢出，相当于模 2^64
+3. 代码最短，常数很小
+
+使用：
+
+string s;
+cin >> s;
+
+buildHash(s);
+
+if (r1 - l1 == r2 - l2 &&
+    getHash(l1, r1) == getHash(l2, r2))
+{
+    // 认为相等
+}
+*/
+
+============================================================
+三、双模 Hash
+============================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int mod1 = 1000000007;
+const int mod2 = 1000000009;
+const int base = 131;
+const int MAXN = 2e5 + 5;
+
+vector<int> Hash1(MAXN);
+vector<int> Hash2(MAXN);
+
+vector<int> power1(MAXN);
+vector<int> power2(MAXN);
+
+void buildHash(const string &s)
+{
+    int n = s.size();
+
+    power1[0] = 1;
+    power2[0] = 1;
+
+    for (int i = 1; i <= n; i++)
+    {
+        int val = (unsigned char)s[i - 1] + 1;
+
+        power1[i] = power1[i - 1] * base % mod1;
+        power2[i] = power2[i - 1] * base % mod2;
+
+        Hash1[i] = (Hash1[i - 1] * base + val) % mod1;
+        Hash2[i] = (Hash2[i - 1] * base + val) % mod2;
+    }
+}
+
+// 查询 s[l...r] 的双 Hash
+// l, r 为 1-based
+pair<int, int> getHash(int l, int r)
+{
+    int h1 = Hash1[r] - Hash1[l - 1] * power1[r - l + 1] % mod1;
+    int h2 = Hash2[r] - Hash2[l - 1] * power2[r - l + 1] % mod2;
+
+    h1 %= mod1;
+    h2 %= mod2;
+
+    if (h1 < 0)
+    {
+        h1 += mod1;
+    }
+
+    if (h2 < 0)
+    {
+        h2 += mod2;
+    }
+
+    return {h1, h2};
+}
+
+/*
+使用：
+
+string s;
+cin >> s;
+
+buildHash(s);
+
+if (r1 - l1 == r2 - l2 &&
+    getHash(l1, r1) == getHash(l2, r2))
+{
+    // 两组 Hash 都相等
+    // 认为两个子串相等
+}
+*/
+
+============================================================
+四、Hash + 二分求 LCP
+============================================================
+
+/*
+前提：
+已经有 getHash(l, r)
+
+作用：
+求 s[x...] 和 s[y...] 的最长公共前缀长度。
+
+x, y 为 1-based。
+*/
+
+int getLCP(int x, int y, int n)
+{
+    int left = 0;
+    int right = min(n - x + 1, n - y + 1);
+    int ans = 0;
+
+    while (left <= right)
+    {
+        int mid = (left + right) / 2;
+
+        if (mid == 0 ||
+            getHash(x, x + mid - 1) == getHash(y, y + mid - 1))
+        {
+            ans = mid;
+            left = mid + 1;
+        }
+        else
+        {
+            right = mid - 1;
+        }
+    }
+
+    return ans;
+}
+
+/*
+复杂度：
+
+一次 Hash 比较 O(1)
+二分 O(log n)
+
+所以一次 LCP 查询：
+
+O(log n)
+
+看到下面这些描述可以考虑：
+- 两个后缀最多相同多少
+- 两个位置开始最长公共前缀
+- 二分答案 + 子串相等判断
+*/
+
+============================================================
+五、正反 Hash 判断回文
+============================================================
+
+/*
+思路：
+
+原串：
+s
+
+反串：
+rev = reverse(s)
+
+分别建 Hash。
+
+如果原串使用 1-based 区间 [l, r]，
+那么它在反串中对应：
+
+[n - r + 1, n - l + 1]
+
+判断：
+
+Hash_s(l, r)
+==
+Hash_rev(n - r + 1, n - l + 1)
+
+即可认为是回文。
+*/
+
+/*
+如果写两套数组：
+
+Hash1 / power1        -> 原串
+revHash1 / revPower1  -> 反串
+
+那么：
+
+bool isPalindrome(int l, int r)
+{
+    return getHash(l, r) ==
+           getRevHash(n - r + 1, n - l + 1);
+}
+
+一次判断 O(1)。
+
+注意：
+如果题目核心是“求所有回文信息”，以后优先考虑 Manacher / 回文树。
+Hash 更适合把“回文判断”当成一个辅助工具。
+*/
+
+============================================================
+六、考场快速回忆
+============================================================
+
+1. 前缀 Hash：
+
+Hash[i] = Hash[i - 1] * base + s[i]
+
+2. 子串 Hash：
+
+Hash(l, r)
+=
+Hash[r] - Hash[l - 1] * power[r - l + 1]
+
+3. 两个等长子串比较：
+
+getHash(l1, r1) == getHash(l2, r2)
+
+4. LCP：
+
+二分长度 mid
++
+O(1) 比较两个长度为 mid 的子串
+
+复杂度：
+O(log n)
+
+5. 回文：
+
+正串 Hash
++
+反串 Hash
+
+原串 [l, r]
+对应反串：
+
+[n - r + 1, n - l + 1]
+
+6. 选择：
+
+普通题：
+单模
+
+想写得快：
+ULL
+
+怕碰撞：
+双模
+
+============================================================
+七、常见坑
+============================================================
+
+1. 区间下标统一
+   建议 Hash 接口统一 1-based。
+
+2. 两个子串比较前先看长度。
+   长度不同肯定不相等。
+
+3. 单模和双模乘法要注意 long long。
+   如果去掉 #define int long long，
+   请手动写 1LL * a * b。
+
+4. Hash 有碰撞。
+   强依赖正确性时优先双模。
+
+5. 字符值不要直接用 0。
+   推荐：
+
+   (unsigned char)s[i] + 1
+
+6. MAXN 要开够。
+
+7. 多组测试时，如果数组全局复用，
+   注意重新 build 覆盖需要的位置。
+
+============================================================
+八、复杂度
+============================================================
+
+建 Hash：
+O(n)
+
+求任意子串 Hash：
+O(1)
+
+判断两个等长子串：
+O(1)
+
+Hash + 二分求 LCP：
+O(log n)
+
+正反 Hash 判断回文：
+O(1)
+
+空间：
+O(n)
