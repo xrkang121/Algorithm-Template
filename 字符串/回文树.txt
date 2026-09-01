@@ -1,0 +1,229 @@
+/*
+回文树 / 回文自动机 PAM 板子
+
+功能：
+1. 对一个字符串建立回文树。
+2. 每个普通节点对应一个不同的回文子串。
+3. pam[x].len 表示该回文串长度。
+4. pam[x].fail 表示该回文串的最长真回文后缀。
+5. pam[x].cnt 在倒序累加后表示该回文串在整个字符串中的出现次数。
+
+使用方法：
+
+string str;
+cin >> str;
+
+init();
+insert(str);
+
+// 不同回文子串数量：
+cout << top - 1 << '\n';
+
+// 统计每个不同回文串的总出现次数：
+for (int i = top; i >= 2; i--)
+{
+    pam[pam[i].fail].cnt += pam[i].cnt;
+}
+
+// 例如求 len * 出现次数 最大值：
+int ans = 0;
+
+for (int i = 2; i <= top; i++)
+{
+    ans = max(ans, pam[i].len * pam[i].cnt);
+}
+
+注意：
+
+1. 0号节点：
+   len = 0
+   表示空回文，主要作为偶数长度回文的根。
+
+2. 1号节点：
+   len = -1
+   是人为构造的虚拟根，主要用来统一处理奇数长度回文。
+
+3. 初始化：
+   pam[0].fail = 1;
+   pam[1].fail = 1;
+
+   即：
+   len=0 的根失败后跳到 len=-1 根。
+   len=-1 根自己指向自己，是最终兜底节点。
+
+4. last：
+   表示当前已经处理完的前缀的最长回文后缀节点。
+
+5. 每加入一个字符，最多新增一个不同回文子串，
+   所以普通节点最多 n 个，总节点最多 n + 2。
+
+6. ch[c] 的含义：
+   pam[x].ch[c]
+   表示在节点 x 对应回文串的两边同时加字符 c 后，
+   得到的回文节点。
+
+   例如：
+   x 表示 "b"
+   ch['a'] 表示 "aba"
+
+7. cnt：
+   insert 时 pam[last].cnt++，
+   此时只统计“作为某个前缀最长回文后缀”的次数。
+
+   建树完成后必须：
+
+   for (int i = top; i >= 2; i--)
+   {
+       pam[pam[i].fail].cnt += pam[i].cnt;
+   }
+
+   倒序沿 fail 累加后，cnt 才是该回文串在整个字符串里的总出现次数。
+
+8. MAXN 至少要 >= 字符串最大长度 + 2。
+
+9. 如果字符集不是小写字母，需要修改 ch 数组大小和字符映射。
+
+10. 下面代码为了符合常用竞赛风格使用 #define int long long。
+    如果字符串长度很大、内存比较紧，可以把 Node 里面的 ch/fail/len/cnt 改成普通 int，
+    不要让 26 个 ch 都变成 long long。
+*/
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int MAXN = 2e5 + 5;
+
+typedef struct Node
+{
+    int ch[26];
+
+    int fail;
+
+    int len;
+
+    int cnt;
+
+} Node;
+
+vector<Node> pam(MAXN);
+
+int top;
+int last;
+
+void init()
+{
+    for (int i = 0; i < MAXN; i++)
+    {
+        for (int j = 0; j < 26; j++)
+        {
+            pam[i].ch[j] = 0;
+        }
+
+        pam[i].fail = 0;
+        pam[i].len = 0;
+        pam[i].cnt = 0;
+    }
+
+    // 0号节点：偶回文根
+    pam[0].len = 0;
+    pam[0].fail = 1;
+
+    // 1号节点：奇回文根
+    pam[1].len = -1;
+    pam[1].fail = 1;
+
+    top = 1;
+    last = 0;
+}
+
+void insert(const string &str)
+{
+    for (int pos = 0; pos < str.size(); pos++)
+    {
+        int c = str[pos] - 'a';
+
+        // 第一步：
+        // 从当前最长回文后缀 last 开始，
+        // 沿 fail 找第一个可以被 str[pos]
+        // 从左右两边扩展的回文。
+        int p = last;
+
+        while (pos - pam[p].len - 1 < 0 ||
+               str[pos - pam[p].len - 1] != str[pos])
+        {
+            p = pam[p].fail;
+        }
+
+        // 第二步：
+        // 如果这个回文以前没有出现过，
+        // 就新建一个节点。
+        if (pam[p].ch[c] == 0)
+        {
+            int now = ++top;
+
+            // 新回文是在 p 的两边各加一个字符
+            pam[now].len = pam[p].len + 2;
+
+            // 第三步：
+            // 求新节点 now 的 fail。
+            if (pam[now].len == 1)
+            {
+                // 单字符回文的最长真回文后缀是空串
+                pam[now].fail = 0;
+            }
+            else
+            {
+                // 从 p 的最长真回文后缀开始继续找
+                int q = pam[p].fail;
+
+                while (pos - pam[q].len - 1 < 0 ||
+                       str[pos - pam[q].len - 1] != str[pos])
+                {
+                    q = pam[q].fail;
+                }
+
+                // q 两边加当前字符后，
+                // 得到的回文就是 now 的最长真回文后缀
+                pam[now].fail = pam[q].ch[c];
+            }
+
+            // p 两边加字符 c 后得到 now
+            pam[p].ch[c] = now;
+        }
+
+        // 第四步：
+        // 更新当前整个前缀的最长回文后缀。
+        last = pam[p].ch[c];
+
+        // 当前回文作为“当前前缀最长回文后缀”出现一次
+        pam[last].cnt++;
+    }
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    string str;
+    cin >> str;
+
+    init();
+
+    // 对整个字符串建立回文树
+    insert(str);
+
+    // 不同回文子串数量
+    cout << top - 1 << '\n';
+
+    // 如果需要统计每个不同回文串的总出现次数：
+    //
+    // for (int i = top; i >= 2; i--)
+    // {
+    //     pam[pam[i].fail].cnt += pam[i].cnt;
+    // }
+
+    return 0;
+}
