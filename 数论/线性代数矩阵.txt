@@ -1,0 +1,1580 @@
+算法竞赛：矩阵 / 线性代数板子
+================================
+适用方向：
+1. 矩阵基本性质速查
+2. 行列式 det
+3. 高斯消元（实数 / 质数模）
+4. rank
+5. 逆矩阵
+6. GF(2) / XOR 高斯消元
+7. 矩阵乘法 + 矩阵快速幂
+8. Matrix-Tree 等常见应用时需要的线代结论
+
+默认习惯：
+- 下标尽量 1-based
+- C++17
+- 常见质数模 mod = 998244353
+- #define int long long
+- 实数高斯使用 long double
+- 模意义高斯默认 mod 为质数
+
+============================================================
+一、矩阵基础概念
+============================================================
+
+1. 矩阵乘法
+
+A 是 n × m，B 是 m × k，则 AB 是 n × k。
+
+C[i][j] = sum(A[i][t] * B[t][j])
+
+重点：
+- 必须满足 A 的列数 = B 的行数。
+- 一般 AB != BA。
+- 满足结合律：
+    (AB)C = A(BC)
+- 满足分配律：
+    A(B + C) = AB + AC
+
+这也是矩阵快速幂成立的根本原因：只需要结合律，不需要交换律。
+
+
+2. 单位矩阵 I
+
+I 的主对角线全是 1，其余是 0。
+
+AI = IA = A
+
+所以矩阵快速幂中：
+A^0 = I
+
+
+3. 转置
+
+(A^T)[i][j] = A[j][i]
+
+重要性质：
+
+(A + B)^T = A^T + B^T
+
+(AB)^T = B^T A^T
+
+注意：乘积转置以后顺序反过来。
+
+
+4. 方阵
+
+只有 n × n 的矩阵叫方阵。
+
+以下概念一般针对方阵：
+- det
+- 逆矩阵
+- 特征值
+- 主子式
+
+
+============================================================
+二、子式 / 余子式 / 代数余子式 / 主子式
+============================================================
+
+1. k 阶子式
+
+从矩阵中任取 k 行、k 列，
+得到 k × k 方阵，对它求行列式。
+
+这个行列式叫 k 阶子式。
+
+
+2. 余子式 M_ij
+
+对于 n × n 方阵 A：
+
+删除第 i 行、第 j 列，
+剩下的 (n - 1) × (n - 1) 行列式叫：
+
+M_ij
+
+
+3. 代数余子式 A_ij
+
+A_ij = (-1)^(i+j) * M_ij
+
+符号：
+
++ - + - ...
+- + - + ...
++ - + - ...
+- + - + ...
+
+
+4. 按某一行展开 det
+
+det(A) = sum_j a[i][j] * A_ij
+
+也就是：
+
+det(A) = sum_j a[i][j] * (-1)^(i+j) * M_ij
+
+
+5. 主子式
+
+选取的行下标集合和列下标集合完全相同。
+
+比如同时选择第 1、3 行和第 1、3 列。
+
+
+6. 顺序主子式
+
+必须从左上角开始取连续的 k × k：
+
+Delta_k = det(A[1..k][1..k])
+
+关系：
+
+顺序主子式 ⊂ 主子式 ⊂ 子式
+
+
+============================================================
+三、行列式 det 的核心性质
+============================================================
+
+设 A 为 n × n 方阵。
+
+1.
+det(I) = 1
+
+2.
+det(A^T) = det(A)
+
+3.
+det(AB) = det(A) * det(B)
+
+4.
+如果 A 可逆：
+
+det(A^-1) = 1 / det(A)
+
+5.
+det(kA) = k^n * det(A)
+
+注意是 k^n，不是 k。
+
+
+6. 三角矩阵
+
+如果 A 是上三角或下三角矩阵：
+
+det(A) = a[1][1] * a[2][2] * ... * a[n][n]
+
+
+7. 初等行变换对 det 的影响
+
+(1) 交换两行：
+
+det -> -det
+
+(2) 某一行乘 k：
+
+det -> k * det
+
+(3) 某一行加上另一行的 k 倍：
+
+det 不变
+
+
+因此可以高斯消元变成上三角矩阵，
+再把对角线相乘。
+
+复杂度：
+O(n^3)
+
+
+8. 极其重要的等价关系
+
+对于 n × n 方阵 A：
+
+det(A) != 0
+<=>
+A 可逆
+<=>
+rank(A) = n
+<=>
+A 的行向量线性无关
+<=>
+A 的列向量线性无关
+<=>
+Ax = 0 只有零解
+
+
+反过来：
+
+det(A) = 0
+<=>
+A 不可逆
+<=>
+rank(A) < n
+<=>
+行/列向量线性相关
+<=>
+Ax = 0 存在非零解
+
+
+============================================================
+四、rank（秩）
+============================================================
+
+直觉：
+
+rank = 矩阵中真正独立的信息数量。
+
+高斯消元后：
+
+主元数量 = rank
+
+
+常用性质：
+
+rank(A) = rank(A^T)
+
+rank(AB) <= min(rank(A), rank(B))
+
+rank(A + B) <= rank(A) + rank(B)
+
+对于 n × n 方阵：
+
+rank(A) = n
+<=>
+A 可逆
+<=>
+det(A) != 0
+
+
+线性方程组 Ax = b：
+
+rank(A) < rank([A|b])
+    -> 无解
+
+rank(A) = rank([A|b]) = n
+    -> 唯一解
+
+rank(A) = rank([A|b]) < n
+    -> 无穷多解（在无限域上）
+
+
+自由变量数量：
+
+n - rank(A)
+
+
+============================================================
+五、逆矩阵
+============================================================
+
+定义：
+
+A * A^-1 = A^-1 * A = I
+
+
+存在条件：
+
+A^-1 存在
+<=>
+det(A) != 0
+<=>
+rank(A) = n
+
+
+性质：
+
+(AB)^-1 = B^-1 A^-1
+
+注意顺序反过来。
+
+(A^T)^-1 = (A^-1)^T
+
+
+求逆常用：
+
+Gauss-Jordan
+
+[A | I]
+   ↓
+[I | A^-1]
+
+复杂度：
+O(n^3)
+
+
+============================================================
+六、trace（迹）——知道即可
+============================================================
+
+tr(A) = sum_i A[i][i]
+
+性质：
+
+tr(A + B) = tr(A) + tr(B)
+
+tr(kA) = k tr(A)
+
+tr(AB) = tr(BA)
+
+如果知道特征值：
+
+tr(A) = 所有特征值之和
+det(A) = 所有特征值之积
+
+竞赛中 trace 没有 det/rank 常见，但偶尔会用。
+
+
+============================================================
+七、O(n^3) 求 det —— 质数模
+============================================================
+
+适用：
+- 模数 mod 为质数
+- 例如 998244353、1e9+7
+
+核心：
+
+高斯消元 -> 上三角
+det = 对角线乘积
+
+消元：
+
+R_j -= a[j][i] / a[i][i] * R_i
+
+模意义除法：
+
+x / y
+=
+x * y^(mod-2) (mod mod)
+
+前提：
+mod 是质数，且 y != 0。
+
+
+代码：
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int mod = 998244353;
+
+int qpow(int a, int b)
+{
+    int res = 1;
+
+    while (b)
+    {
+        if (b & 1)
+        {
+            res = res * a % mod;
+        }
+
+        a = a * a % mod;
+        b >>= 1;
+    }
+
+    return res;
+}
+
+// 返回 det(A) mod mod
+// a 使用 1-based
+// 会修改传入副本，不影响原矩阵
+int getdet(vector<vector<int>> a, int n)
+{
+    int ans = 1;
+
+    // 先把所有元素正规化到 [0, mod)
+    for (int i = 1; i <= n; i++)
+    {
+        for (int j = 1; j <= n; j++)
+        {
+            a[i][j] %= mod;
+
+            if (a[i][j] < 0)
+            {
+                a[i][j] += mod;
+            }
+        }
+    }
+
+    for (int i = 1; i <= n; i++)
+    {
+        int pos = -1;
+
+        // 找主元
+        for (int j = i; j <= n; j++)
+        {
+            if (a[j][i] != 0)
+            {
+                pos = j;
+                break;
+            }
+        }
+
+        // 找不到主元 -> det = 0
+        if (pos == -1)
+        {
+            return 0;
+        }
+
+        // 换行会让 det 变号
+        if (pos != i)
+        {
+            swap(a[pos], a[i]);
+            ans = (mod - ans) % mod;
+        }
+
+        // 当前主元乘进答案
+        ans = ans * a[i][i] % mod;
+
+        int inv = qpow(a[i][i], mod - 2);
+
+        // 消掉下面的数
+        for (int j = i + 1; j <= n; j++)
+        {
+            if (a[j][i] == 0)
+            {
+                continue;
+            }
+
+            int val = a[j][i] * inv % mod;
+
+            for (int k = i; k <= n; k++)
+            {
+                a[j][k] -= val * a[i][k] % mod;
+                a[j][k] %= mod;
+
+                if (a[j][k] < 0)
+                {
+                    a[j][k] += mod;
+                }
+            }
+        }
+    }
+
+    return ans;
+}
+
+
+复杂度：
+
+O(n^3)
+
+注意：
+1. 这个版本依赖模逆元。
+2. 默认 mod 为质数。
+3. 如果 mod 是合数，不要直接套 qpow(x, mod-2)。
+
+
+============================================================
+八、实数高斯消元
+============================================================
+
+功能：
+- 求 Ax = b
+- 判断唯一解 / 无解 / 多解
+
+返回：
+0 -> 无解
+1 -> 唯一解
+2 -> 无穷多解
+
+同时得到：
+- rank
+- 一组解 x
+
+代码：
+
+const long double EPS = 1e-12;
+
+typedef struct GaussResult
+{
+    int status;
+    int rank;
+    vector<long double> x;
+} GaussResult;
+
+GaussResult gaussReal(vector<vector<long double>> a, int n, int m)
+{
+    // a 是 n 个方程，m 个未知数
+    // 增广矩阵大小 n × (m + 1)
+    // a[i][m + 1] 是右侧常数
+    // 1-based
+
+    int row = 1;
+
+    vector<int> where(m + 1, 0);
+
+    for (int col = 1; col <= m && row <= n; col++)
+    {
+        int pos = row;
+
+        // 选绝对值最大的主元，数值更稳定
+        for (int i = row; i <= n; i++)
+        {
+            if (fabsl(a[i][col]) > fabsl(a[pos][col]))
+            {
+                pos = i;
+            }
+        }
+
+        if (fabsl(a[pos][col]) < EPS)
+        {
+            continue;
+        }
+
+        swap(a[pos], a[row]);
+
+        where[col] = row;
+
+        long double div = a[row][col];
+
+        for (int j = col; j <= m + 1; j++)
+        {
+            a[row][j] /= div;
+        }
+
+        // Gauss-Jordan：把这一列其他行都消掉
+        for (int i = 1; i <= n; i++)
+        {
+            if (i == row)
+            {
+                continue;
+            }
+
+            if (fabsl(a[i][col]) < EPS)
+            {
+                continue;
+            }
+
+            long double val = a[i][col];
+
+            for (int j = col; j <= m + 1; j++)
+            {
+                a[i][j] -= val * a[row][j];
+            }
+        }
+
+        row++;
+    }
+
+    int rank = row - 1;
+
+    // 判断无解：
+    // 0x1 + 0x2 + ... + 0xm = 非0
+    for (int i = 1; i <= n; i++)
+    {
+        bool all_zero = true;
+
+        for (int j = 1; j <= m; j++)
+        {
+            if (fabsl(a[i][j]) >= EPS)
+            {
+                all_zero = false;
+                break;
+            }
+        }
+
+        if (all_zero && fabsl(a[i][m + 1]) >= EPS)
+        {
+            GaussResult res;
+            res.status = 0;
+            res.rank = rank;
+            return res;
+        }
+    }
+
+    vector<long double> x(m + 1, 0);
+
+    for (int col = 1; col <= m; col++)
+    {
+        if (where[col] != 0)
+        {
+            x[col] = a[where[col]][m + 1];
+        }
+    }
+
+    GaussResult res;
+    res.rank = rank;
+    res.x = x;
+
+    if (rank == m)
+    {
+        res.status = 1;
+    }
+    else
+    {
+        res.status = 2;
+    }
+
+    return res;
+}
+
+
+============================================================
+九、质数模高斯消元
+============================================================
+
+适用：
+Ax = b (mod mod)
+
+默认：
+mod 为质数。
+
+返回：
+0 -> 无解
+1 -> 唯一解
+2 -> 多解
+
+同时返回：
+rank 和一组解。
+
+typedef struct ModGaussResult
+{
+    int status;
+    int rank;
+    vector<int> x;
+} ModGaussResult;
+
+ModGaussResult gaussMod(vector<vector<int>> a, int n, int m)
+{
+    // 增广矩阵 a[1..n][1..m+1]
+    // 先正规化到 [0, mod)
+    for (int i = 1; i <= n; i++)
+    {
+        for (int j = 1; j <= m + 1; j++)
+        {
+            a[i][j] %= mod;
+
+            if (a[i][j] < 0)
+            {
+                a[i][j] += mod;
+            }
+        }
+    }
+
+    int row = 1;
+
+    vector<int> where(m + 1, 0);
+
+    for (int col = 1; col <= m && row <= n; col++)
+    {
+        int pos = -1;
+
+        for (int i = row; i <= n; i++)
+        {
+            if (a[i][col] != 0)
+            {
+                pos = i;
+                break;
+            }
+        }
+
+        if (pos == -1)
+        {
+            continue;
+        }
+
+        swap(a[pos], a[row]);
+
+        where[col] = row;
+
+        int inv = qpow(a[row][col], mod - 2);
+
+        // 主元化成 1
+        for (int j = col; j <= m + 1; j++)
+        {
+            a[row][j] = a[row][j] * inv % mod;
+        }
+
+        // 消掉其他行
+        for (int i = 1; i <= n; i++)
+        {
+            if (i == row)
+            {
+                continue;
+            }
+
+            if (a[i][col] == 0)
+            {
+                continue;
+            }
+
+            int val = a[i][col];
+
+            for (int j = col; j <= m + 1; j++)
+            {
+                a[i][j] -= val * a[row][j] % mod;
+                a[i][j] %= mod;
+
+                if (a[i][j] < 0)
+                {
+                    a[i][j] += mod;
+                }
+            }
+        }
+
+        row++;
+    }
+
+    int rank = row - 1;
+
+    // 无解判断
+    for (int i = 1; i <= n; i++)
+    {
+        bool all_zero = true;
+
+        for (int j = 1; j <= m; j++)
+        {
+            if (a[i][j] != 0)
+            {
+                all_zero = false;
+                break;
+            }
+        }
+
+        if (all_zero && a[i][m + 1] != 0)
+        {
+            ModGaussResult res;
+            res.status = 0;
+            res.rank = rank;
+            return res;
+        }
+    }
+
+    vector<int> x(m + 1, 0);
+
+    // 自由变量暂时取 0
+    for (int col = 1; col <= m; col++)
+    {
+        if (where[col] != 0)
+        {
+            x[col] = a[where[col]][m + 1];
+        }
+    }
+
+    ModGaussResult res;
+    res.rank = rank;
+    res.x = x;
+
+    if (rank == m)
+    {
+        res.status = 1;
+    }
+    else
+    {
+        res.status = 2;
+    }
+
+    return res;
+}
+
+
+============================================================
+十、单独求 rank —— 质数模
+============================================================
+
+int getrank(vector<vector<int>> a, int n, int m)
+{
+    // 先正规化到 [0, mod)
+    for (int i = 1; i <= n; i++)
+    {
+        for (int j = 1; j <= m; j++)
+        {
+            a[i][j] %= mod;
+
+            if (a[i][j] < 0)
+            {
+                a[i][j] += mod;
+            }
+        }
+    }
+
+    int row = 1;
+
+    for (int col = 1; col <= m && row <= n; col++)
+    {
+        int pos = -1;
+
+        for (int i = row; i <= n; i++)
+        {
+            if (a[i][col] != 0)
+            {
+                pos = i;
+                break;
+            }
+        }
+
+        if (pos == -1)
+        {
+            continue;
+        }
+
+        swap(a[pos], a[row]);
+
+        int inv = qpow(a[row][col], mod - 2);
+
+        for (int j = col; j <= m; j++)
+        {
+            a[row][j] = a[row][j] * inv % mod;
+        }
+
+        for (int i = row + 1; i <= n; i++)
+        {
+            if (a[i][col] == 0)
+            {
+                continue;
+            }
+
+            int val = a[i][col];
+
+            for (int j = col; j <= m; j++)
+            {
+                a[i][j] -= val * a[row][j] % mod;
+                a[i][j] %= mod;
+
+                if (a[i][j] < 0)
+                {
+                    a[i][j] += mod;
+                }
+            }
+        }
+
+        row++;
+    }
+
+    return row - 1;
+}
+
+
+============================================================
+十一、质数模矩阵求逆
+============================================================
+
+方法：
+
+[A | I]
+↓
+[I | A^-1]
+
+如果某一列找不到主元：
+矩阵不可逆。
+
+返回：
+true  -> 可逆，inv 中得到逆矩阵
+false -> 不可逆
+
+bool getInverse(vector<vector<int>> a,
+                vector<vector<int>> &inv,
+                int n)
+{
+    vector<vector<int>> b;
+
+    b.resize(n + 1);
+
+    for (int i = 1; i <= n; i++)
+    {
+        b[i].resize(2 * n + 1, 0);
+
+        for (int j = 1; j <= n; j++)
+        {
+            b[i][j] = a[i][j] % mod;
+
+            if (b[i][j] < 0)
+            {
+                b[i][j] += mod;
+            }
+        }
+
+        b[i][n + i] = 1;
+    }
+
+    for (int col = 1; col <= n; col++)
+    {
+        int pos = -1;
+
+        for (int i = col; i <= n; i++)
+        {
+            if (b[i][col] != 0)
+            {
+                pos = i;
+                break;
+            }
+        }
+
+        if (pos == -1)
+        {
+            return false;
+        }
+
+        swap(b[pos], b[col]);
+
+        int inv_pivot = qpow(b[col][col], mod - 2);
+
+        // 主元行归一化
+        for (int j = 1; j <= 2 * n; j++)
+        {
+            b[col][j] = b[col][j] * inv_pivot % mod;
+        }
+
+        // 消掉其他行
+        for (int i = 1; i <= n; i++)
+        {
+            if (i == col)
+            {
+                continue;
+            }
+
+            if (b[i][col] == 0)
+            {
+                continue;
+            }
+
+            int val = b[i][col];
+
+            for (int j = 1; j <= 2 * n; j++)
+            {
+                b[i][j] -= val * b[col][j] % mod;
+                b[i][j] %= mod;
+
+                if (b[i][j] < 0)
+                {
+                    b[i][j] += mod;
+                }
+            }
+        }
+    }
+
+    inv.clear();
+    inv.resize(n + 1);
+
+    for (int i = 1; i <= n; i++)
+    {
+        inv[i].resize(n + 1, 0);
+
+        for (int j = 1; j <= n; j++)
+        {
+            inv[i][j] = b[i][n + j];
+        }
+    }
+
+    return true;
+}
+
+
+============================================================
+十二、GF(2) / XOR 高斯消元
+============================================================
+
+适用：
+
+x1 xor x2 xor x4 = 1
+x2 xor x3 = 0
+...
+
+所有运算都在 GF(2)。
+
+特点：
+
+加法 = XOR
+减法 = XOR
+非零元素只有 1，所以不需要求逆元。
+
+下面模板用 bitset。
+
+注意：
+bitset 的下标范围是 0..MAXM-1。
+下面采用 1-based，最后一个位置 m + 1 存 RHS，
+所以必须满足：
+
+MAXM > m + 1
+
+也就是至少开到“未知数数量 + 2”。
+
+// 因为下面使用 1-based，并且 RHS 放在 m + 1，
+// 所以必须保证 MAXM > m + 1。
+const int MAXM = 2005;
+
+typedef struct XorGaussResult
+{
+    int status;
+    int rank;
+    vector<int> x;
+} XorGaussResult;
+
+XorGaussResult gaussXor(vector<bitset<MAXM>> a, int n, int m)
+{
+    int row = 1;
+
+    vector<int> where(m + 1, 0);
+
+    // 为了保持 1-based：
+    // bit 1..m 表示变量
+    // bit m+1 表示 RHS
+
+    for (int col = 1; col <= m && row <= n; col++)
+    {
+        int pos = -1;
+
+        for (int i = row; i <= n; i++)
+        {
+            if (a[i][col])
+            {
+                pos = i;
+                break;
+            }
+        }
+
+        if (pos == -1)
+        {
+            continue;
+        }
+
+        swap(a[pos], a[row]);
+
+        where[col] = row;
+
+        for (int i = 1; i <= n; i++)
+        {
+            if (i == row)
+            {
+                continue;
+            }
+
+            if (a[i][col])
+            {
+                a[i] ^= a[row];
+            }
+        }
+
+        row++;
+    }
+
+    int rank = row - 1;
+
+    // 判断无解
+    for (int i = 1; i <= n; i++)
+    {
+        bool all_zero = true;
+
+        for (int j = 1; j <= m; j++)
+        {
+            if (a[i][j])
+            {
+                all_zero = false;
+                break;
+            }
+        }
+
+        if (all_zero && a[i][m + 1])
+        {
+            XorGaussResult res;
+            res.status = 0;
+            res.rank = rank;
+            return res;
+        }
+    }
+
+    vector<int> x(m + 1, 0);
+
+    for (int col = 1; col <= m; col++)
+    {
+        if (where[col] != 0)
+        {
+            x[col] = a[where[col]][m + 1];
+        }
+    }
+
+    XorGaussResult res;
+    res.rank = rank;
+    res.x = x;
+
+    if (rank == m)
+    {
+        res.status = 1;
+    }
+    else
+    {
+        res.status = 2;
+    }
+
+    return res;
+}
+
+
+GF(2) 常见结论：
+
+如果方程组有解，m 个未知数，rank = r：
+
+自由变量 = m - r
+
+解的数量：
+
+2^(m-r)
+
+
+============================================================
+十三、矩阵乘法 + 矩阵快速幂
+============================================================
+
+虽然不完全属于“高斯线代”，但比赛中矩阵基本一定会一起用。
+
+struct Matrix
+{
+    int n;
+    vector<vector<int>> a;
+
+    Matrix(int _n = 0)
+    {
+        init(_n);
+    }
+
+    void init(int _n)
+    {
+        n = _n;
+
+        a.clear();
+        a.resize(n + 1);
+
+        for (int i = 1; i <= n; i++)
+        {
+            a[i].resize(n + 1, 0);
+        }
+    }
+};
+
+Matrix getvalue(Matrix A, Matrix B)
+{
+    int n = A.n;
+
+    Matrix C(n);
+
+    for (int i = 1; i <= n; i++)
+    {
+        for (int k = 1; k <= n; k++)
+        {
+            if (A.a[i][k] == 0)
+            {
+                continue;
+            }
+
+            for (int j = 1; j <= n; j++)
+            {
+                C.a[i][j] += A.a[i][k] * B.a[k][j] % mod;
+                C.a[i][j] %= mod;
+            }
+        }
+    }
+
+    return C;
+}
+
+Matrix getIdentity(int n)
+{
+    Matrix I(n);
+
+    for (int i = 1; i <= n; i++)
+    {
+        I.a[i][i] = 1;
+    }
+
+    return I;
+}
+
+Matrix matrixPow(Matrix A, int b)
+{
+    Matrix res = getIdentity(A.n);
+
+    while (b)
+    {
+        if (b & 1)
+        {
+            res = getvalue(res, A);
+        }
+
+        A = getvalue(A, A);
+        b >>= 1;
+    }
+
+    return res;
+}
+
+
+复杂度：
+
+普通矩阵乘法：
+O(n^3)
+
+矩阵快速幂：
+O(n^3 log k)
+
+
+核心理解：
+
+如果状态满足：
+
+S_(t+1) = A S_t
+
+那么：
+
+S_t = A^t S_0
+
+
+============================================================
+十四、图论里矩阵最常见的结论
+============================================================
+
+设 A 是图的邻接矩阵。
+
+A[i][j] = i -> j 的边数。
+
+那么：
+
+(A^k)[i][j]
+
+表示：
+
+从 i 到 j
+恰好走 k 条边
+的路径数量。
+
+
+这就是很多：
+
+图 + 矩阵快速幂
+
+题目的来源。
+
+
+============================================================
+十五、Matrix-Tree / Kirchhoff 定理
+============================================================
+
+无向图生成树数量：
+
+1. 构造度数矩阵 D
+2. 构造邻接矩阵 A
+3. Laplacian：
+
+L = D - A
+
+4. 删除 L 的任意一行和任意同编号的一列
+5. 得到 (n - 1) × (n - 1) 矩阵 L'
+6. 答案：
+
+生成树数量 = det(L')
+
+
+所以 Matrix-Tree 的真正算法核心：
+
+构造 Laplacian
++
+O(n^3) 求 det
+
+
+无向图 Laplacian：
+
+L[i][i] = degree[i]
+
+如果 i != j：
+
+L[i][j] = -(i 与 j 之间的边数)
+
+
+如果最后取模：
+把负数正规化到 [0, mod)。
+
+
+============================================================
+十六、常见判断 / 结论速查
+============================================================
+
+1. A 是否可逆？
+
+det(A) != 0
+或
+rank(A) = n
+
+
+2. Ax = b 是否唯一解？
+
+rank(A) = rank([A|b]) = 未知数数量
+
+
+3. Ax = b 是否无解？
+
+rank(A) < rank([A|b])
+
+
+4. Ax = b 是否多解？
+
+rank(A) = rank([A|b]) < 未知数数量
+
+
+5. Ax = 0 是否存在非零解？
+
+rank(A) < 未知数数量
+
+
+6. n × n 方阵 det = 0 说明什么？
+
+- 不可逆
+- 不满秩
+- 行向量线性相关
+- 列向量线性相关
+- Ax = 0 有非零解
+
+
+7. 上三角 / 下三角矩阵 det？
+
+对角线乘积。
+
+
+8. 两行交换？
+
+det 变号。
+
+
+9. 一行加另一行若干倍？
+
+det 不变。
+
+
+10. 一行乘 k？
+
+det 乘 k。
+
+
+11. det(AB)？
+
+det(A) * det(B)
+
+
+12. det(A^k)？
+
+det(A)^k
+
+
+13. det(A^-1)？
+
+1 / det(A)
+
+
+14. rank(A) 怎么算法求？
+
+高斯消元后主元个数。
+
+
+============================================================
+十七、赛场选择算法
+============================================================
+
+【求 det】
+
+普通实数矩阵：
+    高斯消元 O(n^3)
+
+质数模：
+    高斯消元 + 模逆元 O(n^3)
+
+合数模：
+    不能直接 Fermat 求逆；
+    需要无逆元消元 / Euclid 型消元 / Bareiss 等方法，
+    不要直接套本板子的 getdet。
+
+
+【解 Ax = b】
+
+实数：
+    gaussReal
+
+质数模：
+    gaussMod
+
+XOR：
+    gaussXor
+
+
+【求 rank】
+
+实数：
+    高斯消元数主元
+
+质数模：
+    getrank
+
+GF(2)：
+    XOR 高斯数主元
+
+
+【求逆矩阵】
+
+实数：
+    Gauss-Jordan
+
+质数模：
+    getInverse
+
+
+【生成树计数】
+
+Matrix-Tree
++
+det
+
+
+【巨大 n 的线性递推】
+
+矩阵快速幂
+
+
+============================================================
+十八、容易犯错的地方
+============================================================
+
+1. AB != BA
+
+矩阵乘法顺序不能乱。
+
+
+2. (AB)^T = B^T A^T
+
+顺序反转。
+
+
+3. (AB)^-1 = B^-1 A^-1
+
+顺序反转。
+
+
+4. det(kA) = k^n det(A)
+
+不是 k * det(A)。
+
+
+5. 高斯求 det 时：
+
+交换两行 -> ans 取负。
+
+
+6. 模意义除法：
+
+不能写普通除法。
+
+
+7. qpow(x, mod - 2) 求逆：
+
+默认 mod 为质数，并且 x != 0。
+
+
+8. 实数高斯：
+
+不要直接判断 x == 0，
+要使用 EPS。
+
+
+9. 求逆：
+
+某一列找不到主元 -> 不可逆。
+
+
+10. rank：
+
+不是“非零行数量”这个定义本身，
+但高斯消元成阶梯形以后，
+非零行 / 主元数量就是 rank。
+
+
+11. 余子式和主子式完全不是一回事。
+
+余子式：
+删一行一列。
+
+主子式：
+选相同下标集合的行和列。
+
+
+12. Matrix-Tree：
+
+删掉的是同编号的一行一列，
+得到一个主余子式后求 det。
+
+
+============================================================
+十九、建议板子优先级
+============================================================
+
+赛场必须熟：
+
+★★★★★
+- 矩阵乘法
+- 矩阵快速幂
+- O(n^3) det
+- 高斯消元
+- rank
+
+建议掌握：
+
+★★★★☆
+- 逆矩阵
+- XOR 高斯
+- Matrix-Tree
+
+知道结论即可：
+
+★★★☆☆
+- 主子式 / 顺序主子式
+- trace
+- 特征值的基础关系
+
+目前可以先不专门补：
+
+- Jordan 标准形
+- 正交化
+- 二次型完整理论
+- 特征值数值算法
+- LU / QR / SVD 数值分解
+- 大量大学线代证明题
+
+
+============================================================
+二十、一句话知识树
+============================================================
+
+矩阵
+ |
+ +-- 矩阵乘法
+ |    |
+ |    +-- 矩阵快速幂
+ |    +-- DP 转移
+ |    +-- 图路径计数
+ |
+ +-- det
+ |    |
+ |    +-- 高斯消元 O(n^3)
+ |    +-- 可逆性
+ |    +-- Matrix-Tree
+ |
+ +-- rank
+ |    |
+ |    +-- 线性相关
+ |    +-- 解空间
+ |    +-- 自由变量
+ |
+ +-- 高斯消元
+ |    |
+ |    +-- Ax=b
+ |    +-- rank
+ |    +-- det
+ |    +-- inverse
+ |
+ +-- GF(2)
+      |
+      +-- XOR 高斯
+      +-- XOR 方程组
+      +-- 与线性基联系
