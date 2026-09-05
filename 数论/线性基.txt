@@ -1,17 +1,947 @@
-vector<int> basic(64, 0);
-bool insert_basic(int x){
-    for(int i = 63;i >= 0;i--){
-        if(((x >> i) & i) == 0){
-            continue;
-        }
+线性基（XOR）赛场板子
+====================
 
-        if(basic[i] == 0){
-            basic[i] = x;
-            return true;
-        }
+适用：
+- 子集 XOR 最大值
+- 判断某个值能否被子集 XOR 出来
+- 不同 XOR 结果个数
+- 非空子集 XOR 是否能为 0
+- 第 k 小不同 XOR
+- 合并多个线性基
 
-        x ^= basic[i];
+默认：
+- 使用 long long
+- 数据非负且不超过 1e18
+- 位数使用 0 ~ 62
+
+
+--------------------------------------------------
+一、结构体板子
+--------------------------------------------------
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int LOG = 62;
+
+struct LinearBasis
+{
+    int basis[LOG + 1];
+
+    int rk;
+    bool have_zero;
+
+    LinearBasis()
+    {
+        clear();
     }
 
-    return false;
+    void clear()
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            basis[i] = 0;
+        }
+
+        rk = 0;
+        have_zero = false;
+    }
+
+    // 插入一个数
+    // true：增加了一个新的基，rank + 1
+    // false：这个数可以被已有基表示
+    bool insert(int x)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            if (((x >> i) & 1) == 0)
+            {
+                continue;
+            }
+
+            if (basis[i] == 0)
+            {
+                basis[i] = x;
+                rk++;
+
+                return true;
+            }
+
+            x ^= basis[i];
+        }
+
+        have_zero = true;
+
+        return false;
+    }
+
+    // 判断 x 是否可以由某个子集 XOR 得到
+    bool check(int x)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            if (((x >> i) & 1) == 0)
+            {
+                continue;
+            }
+
+            if (basis[i] == 0)
+            {
+                return false;
+            }
+
+            x ^= basis[i];
+        }
+
+        return true;
+    }
+
+    // 最大化：
+    // x XOR 某个子集 XOR
+    //
+    // 默认 x = 0：
+    // 就是最大子集 XOR
+    int query_max(int x = 0)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            x = max(x, x ^ basis[i]);
+        }
+
+        return x;
+    }
+
+    // 最小化：
+    // x XOR 某个子集 XOR
+    //
+    // 注意：
+    // 如果 x = 0，空集可以得到 0
+    int query_min(int x)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            x = min(x, x ^ basis[i]);
+        }
+
+        return x;
+    }
+
+    // 化成适合求第 k 小的形式
+    void rebuild()
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (basis[i] == 0)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j <= LOG; j++)
+            {
+                if ((basis[j] >> i) & 1)
+                {
+                    basis[j] ^= basis[i];
+                }
+            }
+        }
+    }
+
+    // 第 k 小“不同 XOR 值”
+    // k 从 0 开始
+    //
+    // kth(0) = 0
+    //
+    // 使用前：
+    // rebuild()
+    //
+    // 不存在返回 -1
+    int kth(int k)
+    {
+        if (rk < 63 && k >= (1LL << rk))
+        {
+            return -1;
+        }
+
+        vector<int> temp;
+
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (basis[i])
+            {
+                temp.push_back(basis[i]);
+            }
+        }
+
+        int ans = 0;
+
+        for (int i = 0; i < temp.size(); i++)
+        {
+            if ((k >> i) & 1)
+            {
+                ans ^= temp[i];
+            }
+        }
+
+        return ans;
+    }
+
+    // 合并另一个线性基
+    void merge(const LinearBasis &other)
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (other.basis[i])
+            {
+                insert(other.basis[i]);
+            }
+        }
+
+        if (other.have_zero)
+        {
+            have_zero = true;
+        }
+    }
+};
+
+
+--------------------------------------------------
+二、基本使用
+--------------------------------------------------
+
+LinearBasis lb;
+
+for (int i = 1; i <= n; i++)
+{
+    int x;
+    cin >> x;
+
+    lb.insert(x);
 }
+
+
+--------------------------------------------------
+三、最大子集 XOR
+--------------------------------------------------
+
+cout << lb.query_max() << '\n';
+
+
+--------------------------------------------------
+四、给一个初始值 x，求最大 XOR
+--------------------------------------------------
+
+题目：
+
+    给定 x
+    从数组中选一个子集
+    最大化：
+
+    x XOR 子集异或和
+
+直接：
+
+cout << lb.query_max(x) << '\n';
+
+
+--------------------------------------------------
+五、判断 x 能不能被异或出来
+--------------------------------------------------
+
+if (lb.check(x))
+{
+    cout << "YES\n";
+}
+else
+{
+    cout << "NO\n";
+}
+
+
+含义：
+
+    是否存在一个子集
+    使得这个子集所有数 XOR = x
+
+
+--------------------------------------------------
+六、rank 的含义
+--------------------------------------------------
+
+lb.rk
+
+表示：
+
+    线性基中真正独立的数的数量
+
+
+最重要性质：
+
+    不同的子集 XOR 结果数量 = 2^rk
+
+
+例如：
+
+    n 个数
+    rank = rk
+
+那么不同 XOR 值个数：
+
+    2^rk
+
+
+--------------------------------------------------
+七、某个 XOR 值有多少种子集得到
+--------------------------------------------------
+
+设：
+
+    原数组一共有 n 个数
+    rank = rk
+
+如果：
+
+    lb.check(x) == false
+
+那么：
+
+    XOR = x 的子集数量 = 0
+
+
+如果：
+
+    lb.check(x) == true
+
+那么：
+
+    XOR = x 的子集数量 = 2^(n - rk)
+
+
+如果需要取模：
+
+    qpow(2, n - rk)
+
+
+--------------------------------------------------
+八、是否存在非空子集 XOR = 0
+--------------------------------------------------
+
+两种判断方式：
+
+1.
+
+    lb.have_zero
+
+2.
+
+    lb.rk < n
+
+
+原因：
+
+    n 个数线性相关
+    <=>
+    存在一个非空子集 XOR = 0
+
+
+--------------------------------------------------
+九、第 k 小不同 XOR
+--------------------------------------------------
+
+先：
+
+    lb.rebuild();
+
+
+然后：
+
+    lb.kth(k);
+
+
+注意：
+
+    k 从 0 开始
+
+所以：
+
+    kth(0) = 0
+
+
+如果题目说：
+
+    第 k 小不同 XOR
+    k 从 1 开始
+    并且把 0 算进去
+
+调用：
+
+    lb.kth(k - 1);
+
+
+--------------------------------------------------
+十、第 k 小非空子集 XOR
+--------------------------------------------------
+
+题目中的 k 从 1 开始。
+
+如果：
+
+    lb.have_zero == true
+
+说明：
+
+    非空子集也可以得到 0
+
+所以：
+
+    ans = lb.kth(k - 1);
+
+
+如果：
+
+    lb.have_zero == false
+
+说明：
+
+    0 只能由空集得到
+
+非空子集必须跳过 0：
+
+    ans = lb.kth(k);
+
+
+--------------------------------------------------
+十一、最小非零子集 XOR
+--------------------------------------------------
+
+先：
+
+    lb.rebuild();
+
+
+然后从低位找第一个非零基：
+
+int ans = 0;
+
+for (int i = 0; i <= LOG; i++)
+{
+    if (lb.basis[i])
+    {
+        ans = lb.basis[i];
+        break;
+    }
+}
+
+
+--------------------------------------------------
+十二、合并两个线性基
+--------------------------------------------------
+
+LinearBasis A;
+LinearBasis B;
+
+...
+
+A.merge(B);
+
+
+合并后：
+
+    A
+
+表示：
+
+    两边所有数一起构成的线性基
+
+
+常见场景：
+
+    线段树维护线性基
+    树上合并
+    分治
+    区间查询
+
+
+--------------------------------------------------
+十三、动态加入数字
+--------------------------------------------------
+
+线性基天然支持：
+
+    不断 insert(x)
+
+每次插入后都可以直接：
+
+    query_max()
+
+
+例如：
+
+for (int i = 1; i <= q; i++)
+{
+    int x;
+    cin >> x;
+
+    lb.insert(x);
+
+    cout << lb.query_max() << '\n';
+}
+
+
+--------------------------------------------------
+十四、insert 的核心逻辑
+--------------------------------------------------
+
+对于 x：
+
+从高位往低位看。
+
+如果当前第 i 位是 0：
+
+    跳过
+
+如果第 i 位是 1：
+
+    basis[i] == 0
+
+说明：
+
+    当前还没有最高位为 i 的基
+
+于是：
+
+    basis[i] = x
+
+插入成功。
+
+
+否则：
+
+    x ^= basis[i]
+
+把第 i 位消掉。
+
+继续往低位处理。
+
+
+如果最后：
+
+    x == 0
+
+说明原来的 x：
+
+    可以由已有基 XOR 出来
+
+所以：
+
+    insert 返回 false
+
+
+--------------------------------------------------
+十五、query_max 为什么正确
+--------------------------------------------------
+
+从最高位往低位：
+
+    如果 x ^ basis[i] > x
+
+就选：
+
+    basis[i]
+
+
+因为：
+
+    高位比低位重要
+
+一旦能让当前更高位变成更优，
+后面的低位不可能推翻这个结果。
+
+
+代码：
+
+for (int i = LOG; i >= 0; i--)
+{
+    x = max(x, x ^ basis[i]);
+}
+
+
+--------------------------------------------------
+十六、check 为什么正确
+--------------------------------------------------
+
+和 insert 的消元过程一样。
+
+不断消掉 x 当前最高位的 1。
+
+如果某一位：
+
+    x 的这一位是 1
+
+但是：
+
+    basis[i] == 0
+
+那么：
+
+    没有任何已有基能消掉这一位
+
+所以：
+
+    x 无法被表示。
+
+
+如果最终被消成：
+
+    0
+
+则：
+
+    x 可以被已有基表示。
+
+
+--------------------------------------------------
+十七、常见题型对应
+--------------------------------------------------
+
+1.
+题目：
+
+    从一些数里选一个子集
+    XOR 最大
+
+用：
+
+    query_max()
+
+
+2.
+题目：
+
+    给 x
+    从数组中选子集
+    最大化 x XOR subset
+
+用：
+
+    query_max(x)
+
+
+3.
+题目：
+
+    x 是否能够被某个子集 XOR 出来
+
+用：
+
+    check(x)
+
+
+4.
+题目：
+
+    有多少种不同的子集 XOR 值
+
+用：
+
+    2^rk
+
+
+5.
+题目：
+
+    有多少个子集 XOR = x
+
+先：
+
+    check(x)
+
+如果可以：
+
+    2^(n-rk)
+
+
+6.
+题目：
+
+    是否存在非空子集 XOR = 0
+
+用：
+
+    rk < n
+
+
+7.
+题目：
+
+    第 k 小不同 XOR
+
+用：
+
+    rebuild()
+    kth()
+
+
+8.
+题目：
+
+    不断加入数字
+    每次询问最大 XOR
+
+用：
+
+    insert()
+    query_max()
+
+
+9.
+题目：
+
+    区间 / 子树 / 路径上的 XOR 集合
+
+考虑：
+
+    线段树 + LinearBasis
+    树上合并 + LinearBasis
+
+
+--------------------------------------------------
+十八、完整简单示例
+--------------------------------------------------
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int LOG = 62;
+
+struct LinearBasis
+{
+    int basis[LOG + 1];
+
+    int rk;
+    bool have_zero;
+
+    LinearBasis()
+    {
+        clear();
+    }
+
+    void clear()
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            basis[i] = 0;
+        }
+
+        rk = 0;
+        have_zero = false;
+    }
+
+    bool insert(int x)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            if (((x >> i) & 1) == 0)
+            {
+                continue;
+            }
+
+            if (basis[i] == 0)
+            {
+                basis[i] = x;
+                rk++;
+
+                return true;
+            }
+
+            x ^= basis[i];
+        }
+
+        have_zero = true;
+
+        return false;
+    }
+
+    bool check(int x)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            if (((x >> i) & 1) == 0)
+            {
+                continue;
+            }
+
+            if (basis[i] == 0)
+            {
+                return false;
+            }
+
+            x ^= basis[i];
+        }
+
+        return true;
+    }
+
+    int query_max(int x = 0)
+    {
+        for (int i = LOG; i >= 0; i--)
+        {
+            x = max(x, x ^ basis[i]);
+        }
+
+        return x;
+    }
+
+    void rebuild()
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (basis[i] == 0)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j <= LOG; j++)
+            {
+                if ((basis[j] >> i) & 1)
+                {
+                    basis[j] ^= basis[i];
+                }
+            }
+        }
+    }
+
+    int kth(int k)
+    {
+        if (rk < 63 && k >= (1LL << rk))
+        {
+            return -1;
+        }
+
+        vector<int> temp;
+
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (basis[i])
+            {
+                temp.push_back(basis[i]);
+            }
+        }
+
+        int ans = 0;
+
+        for (int i = 0; i < temp.size(); i++)
+        {
+            if ((k >> i) & 1)
+            {
+                ans ^= temp[i];
+            }
+        }
+
+        return ans;
+    }
+
+    void merge(const LinearBasis &other)
+    {
+        for (int i = 0; i <= LOG; i++)
+        {
+            if (other.basis[i])
+            {
+                insert(other.basis[i]);
+            }
+        }
+
+        if (other.have_zero)
+        {
+            have_zero = true;
+        }
+    }
+};
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+
+    LinearBasis lb;
+
+    for (int i = 1; i <= n; i++)
+    {
+        int x;
+        cin >> x;
+
+        lb.insert(x);
+    }
+
+    cout << lb.query_max() << '\n';
+
+    return 0;
+}
+
+
+--------------------------------------------------
+十九、赛场速记
+--------------------------------------------------
+
+insert(x)
+    插入
+
+insert(x) == false
+    x 线性相关
+
+query_max()
+    最大子集 XOR
+
+query_max(x)
+    最大化 x XOR subset
+
+check(x)
+    判断 x 是否可表示
+
+rk
+    秩
+
+不同 XOR 值数量
+    2^rk
+
+XOR = x 的子集数量
+    check(x) ? 2^(n-rk) : 0
+
+存在非空子集 XOR = 0
+    rk < n
+
+第 k 小
+    rebuild()
+    kth()
+
+合并
+    merge()
+
+
+--------------------------------------------------
+二十、一句话理解
+--------------------------------------------------
+
+线性基维护的是：
+
+    所有子集 XOR 结果形成的线性空间
+
+最多只需要保留：
+
+    63 个基向量
+
+然后所有：
+
+    最大值
+    可达性
+    计数
+    第 k 小
+    合并
+
+都可以在线性基上完成。
