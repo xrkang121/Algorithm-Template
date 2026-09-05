@@ -1,0 +1,1070 @@
+用途：
+- 在“最大流”的前提下，让总费用最小
+- 或者把收益取负，求最大收益
+- 带费用的二分图匹配
+- 每个选择有容量 + 花费 / 收益
+- “最多选多少，同时总代价最小”一类题
+
+核心输出：
+
+    flow = 最大流量
+    cost = 达到最大流时的最小费用
+
+
+=====================================================
+一、最重要的建模
+=====================================================
+
+一条边：
+
+    u -> v
+
+有：
+
+    cap   容量
+    cost  每流 1 单位的费用
+
+
+如果这条边流了：
+
+    f
+
+单位，
+
+贡献费用：
+
+    f * cost
+
+
+总费用：
+
+    Σ flow(edge) * cost(edge)
+
+
+=====================================================
+二、为什么一定要建反向边
+=====================================================
+
+加入：
+
+    u -> v
+
+容量：
+
+    cap
+
+费用：
+
+    cost
+
+
+同时必须加入反向边：
+
+    v -> u
+
+初始容量：
+
+    0
+
+费用：
+
+    -cost
+
+
+原因：
+
+如果后面发现之前的流法不是最优，
+
+可以沿反向边：
+
+    把之前的流退回来
+
+重新调整。
+
+
+所以：
+
+    正边 cost
+    反边 -cost
+
+
+=====================================================
+三、最轻赛场版本：SPFA + 增广
+=====================================================
+
+这个版本优点：
+
+    好理解
+    好抄
+    支持负费用边
+    普通比赛数据够用
+
+
+缺点：
+
+    最坏复杂度不够漂亮
+
+如果题目数据特别大、
+明显卡 SPFA，
+
+再考虑：
+
+    势能 + Dijkstra
+
+普通题优先这个轻量版。
+
+
+=====================================================
+四、边结构
+=====================================================
+
+struct Edge
+{
+    int to;
+
+    int cap;
+    int cost;
+
+    int rev;
+};
+
+
+含义：
+
+    to
+        终点
+
+    cap
+        当前剩余容量
+
+    cost
+        单位流量费用
+
+    rev
+        这条边对应的反向边
+        在 mymap[to] 中的下标
+
+
+=====================================================
+五、加边
+=====================================================
+
+vector<vector<Edge>> mymap;
+
+void add_edge(int x, int y, int cap, int cost)
+{
+    Edge a;
+    a.to = y;
+    a.cap = cap;
+    a.cost = cost;
+    a.rev = mymap[y].size();
+
+    Edge b;
+    b.to = x;
+    b.cap = 0;
+    b.cost = -cost;
+    b.rev = mymap[x].size();
+
+    mymap[x].push_back(a);
+    mymap[y].push_back(b);
+}
+
+
+=====================================================
+六、SPFA 找“费用最短路”
+=====================================================
+
+每次从：
+
+    S
+
+到：
+
+    T
+
+找一条：
+
+    还有剩余容量
+
+并且：
+
+    总费用最小
+
+的路径。
+
+
+这不是普通最短路：
+
+边只有在：
+
+    cap > 0
+
+时才能走。
+
+
+=====================================================
+七、完整核心板子
+=====================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = 1e18;
+
+struct Edge
+{
+    int to;
+
+    int cap;
+    int cost;
+
+    int rev;
+};
+
+vector<vector<Edge>> mymap;
+
+vector<int> dis;
+vector<int> in_queue;
+
+vector<int> pre_point;
+vector<int> pre_edge;
+
+
+void add_edge(int x, int y, int cap, int cost)
+{
+    Edge a;
+    a.to = y;
+    a.cap = cap;
+    a.cost = cost;
+    a.rev = mymap[y].size();
+
+    Edge b;
+    b.to = x;
+    b.cap = 0;
+    b.cost = -cost;
+    b.rev = mymap[x].size();
+
+    mymap[x].push_back(a);
+    mymap[y].push_back(b);
+}
+
+
+bool spfa(int S, int T)
+{
+    int n = mymap.size() - 1;
+
+    dis.assign(n + 1, INF);
+    in_queue.assign(n + 1, 0);
+
+    pre_point.assign(n + 1, -1);
+    pre_edge.assign(n + 1, -1);
+
+    queue<int> q;
+
+    dis[S] = 0;
+
+    q.push(S);
+    in_queue[S] = 1;
+
+    while (!q.empty())
+    {
+        int x = q.front();
+        q.pop();
+
+        in_queue[x] = 0;
+
+        for (int i = 0; i < mymap[x].size(); i++)
+        {
+            Edge &e = mymap[x][i];
+
+            if (e.cap <= 0)
+            {
+                continue;
+            }
+
+            if (dis[e.to] > dis[x] + e.cost)
+            {
+                dis[e.to] = dis[x] + e.cost;
+
+                pre_point[e.to] = x;
+                pre_edge[e.to] = i;
+
+                if (!in_queue[e.to])
+                {
+                    in_queue[e.to] = 1;
+                    q.push(e.to);
+                }
+            }
+        }
+    }
+
+    return dis[T] != INF;
+}
+
+
+pair<int, int> min_cost_max_flow(int S, int T)
+{
+    int flow = 0;
+    int cost = 0;
+
+    while (spfa(S, T))
+    {
+        int add = INF;
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            add = min(add, mymap[fa][id].cap);
+        }
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            Edge &e = mymap[fa][id];
+
+            e.cap -= add;
+
+            mymap[e.to][e.rev].cap += add;
+        }
+
+        flow += add;
+        cost += add * dis[T];
+    }
+
+    return {flow, cost};
+}
+
+
+=====================================================
+八、怎么调用
+=====================================================
+
+先：
+
+int n;
+cin >> n;
+
+mymap.resize(n + 1);
+
+
+然后建边：
+
+add_edge(x, y, cap, cost);
+
+
+最后：
+
+auto [flow, cost] =
+    min_cost_max_flow(S, T);
+
+
+输出：
+
+cout << flow << ' ' << cost << '\n';
+
+
+=====================================================
+九、完整最小示例
+=====================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = 1e18;
+
+struct Edge
+{
+    int to;
+
+    int cap;
+    int cost;
+
+    int rev;
+};
+
+vector<vector<Edge>> mymap;
+
+vector<int> dis;
+vector<int> in_queue;
+
+vector<int> pre_point;
+vector<int> pre_edge;
+
+
+void add_edge(int x, int y, int cap, int cost)
+{
+    Edge a;
+    a.to = y;
+    a.cap = cap;
+    a.cost = cost;
+    a.rev = mymap[y].size();
+
+    Edge b;
+    b.to = x;
+    b.cap = 0;
+    b.cost = -cost;
+    b.rev = mymap[x].size();
+
+    mymap[x].push_back(a);
+    mymap[y].push_back(b);
+}
+
+
+bool spfa(int S, int T)
+{
+    int n = mymap.size() - 1;
+
+    dis.assign(n + 1, INF);
+    in_queue.assign(n + 1, 0);
+
+    pre_point.assign(n + 1, -1);
+    pre_edge.assign(n + 1, -1);
+
+    queue<int> q;
+
+    dis[S] = 0;
+
+    q.push(S);
+    in_queue[S] = 1;
+
+    while (!q.empty())
+    {
+        int x = q.front();
+        q.pop();
+
+        in_queue[x] = 0;
+
+        for (int i = 0; i < mymap[x].size(); i++)
+        {
+            Edge &e = mymap[x][i];
+
+            if (e.cap <= 0)
+            {
+                continue;
+            }
+
+            if (dis[e.to] > dis[x] + e.cost)
+            {
+                dis[e.to] = dis[x] + e.cost;
+
+                pre_point[e.to] = x;
+                pre_edge[e.to] = i;
+
+                if (!in_queue[e.to])
+                {
+                    in_queue[e.to] = 1;
+                    q.push(e.to);
+                }
+            }
+        }
+    }
+
+    return dis[T] != INF;
+}
+
+
+pair<int, int> min_cost_max_flow(int S, int T)
+{
+    int flow = 0;
+    int cost = 0;
+
+    while (spfa(S, T))
+    {
+        int add = INF;
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            add = min(add, mymap[fa][id].cap);
+        }
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            Edge &e = mymap[fa][id];
+
+            e.cap -= add;
+
+            mymap[e.to][e.rev].cap += add;
+        }
+
+        flow += add;
+        cost += add * dis[T];
+    }
+
+    return {flow, cost};
+}
+
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, S, T;
+    cin >> n >> m >> S >> T;
+
+    mymap.resize(n + 1);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int x, y, cap, cost;
+        cin >> x >> y >> cap >> cost;
+
+        add_edge(x, y, cap, cost);
+    }
+
+    auto [flow, cost] =
+        min_cost_max_flow(S, T);
+
+    cout << flow << ' ' << cost << '\n';
+
+    return 0;
+}
+
+
+=====================================================
+十、二分图带权匹配怎么建
+=====================================================
+
+场景：
+
+    左部 n 个点
+    右部 m 个点
+
+每条匹配边：
+
+    x -> y
+
+有费用：
+
+    cost[x][y]
+
+每个点最多匹配一次。
+
+
+建图：
+
+    S -> 左部点
+    左部点 -> 右部点
+    右部点 -> T
+
+
+容量全部：
+
+    1
+
+
+费用：
+
+S -> 左：
+    0
+
+左 -> 右：
+    cost[x][y]
+
+右 -> T：
+    0
+
+
+然后跑：
+
+    最小费用最大流
+
+
+得到：
+
+    flow
+        最大匹配数
+
+    cost
+        在最大匹配数下的最小总费用
+
+
+=====================================================
+十一、最大收益怎么做
+=====================================================
+
+如果题目给的是：
+
+    profit
+
+要求：
+
+    最大总收益
+
+
+直接把费用设成：
+
+    cost = -profit
+
+
+跑最小费用最大流。
+
+
+最后：
+
+    max_profit = -cost
+
+
+=====================================================
+十二、只想流 k 单位怎么办
+=====================================================
+
+有些题不是：
+
+    最大流
+
+
+而是：
+
+    恰好流 k 单位
+    并且费用最小
+
+
+把函数改成：
+
+pair<int, int> min_cost_flow(int S, int T, int need)
+{
+    int flow = 0;
+    int cost = 0;
+
+    while (flow < need && spfa(S, T))
+    {
+        int add = need - flow;
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            add = min(add, mymap[fa][id].cap);
+        }
+
+        for (int x = T; x != S; x = pre_point[x])
+        {
+            int fa = pre_point[x];
+            int id = pre_edge[x];
+
+            Edge &e = mymap[fa][id];
+
+            e.cap -= add;
+
+            mymap[e.to][e.rev].cap += add;
+        }
+
+        flow += add;
+        cost += add * dis[T];
+    }
+
+    return {flow, cost};
+}
+
+
+调用：
+
+auto [flow, cost] =
+    min_cost_flow(S, T, k);
+
+
+最后检查：
+
+if (flow < k)
+{
+    // 无法流满 k 单位
+}
+
+
+=====================================================
+十三、为什么每次走最短费用路
+=====================================================
+
+当前残量网络里：
+
+    找 S -> T 的最小费用增广路
+
+
+然后尽可能增广。
+
+
+反向边允许我们：
+
+    撤销以前不够优的选择
+
+
+所以不断增广后：
+
+    在当前最大流量下
+    得到最小费用。
+
+
+=====================================================
+十四、典型题型 1：带权二分图匹配
+=====================================================
+
+题目：
+
+    每个人最多选一个任务
+    每个任务最多给一个人
+    每个组合有代价
+
+
+建：
+
+    S -> 人
+    人 -> 任务
+    任务 -> T
+
+
+容量：
+
+    全 1
+
+
+费用：
+
+    人 -> 任务
+    设题目代价
+
+
+=====================================================
+十五、典型题型 2：选择 k 个项目最小代价
+=====================================================
+
+如果：
+
+    每个选择占用一些资源
+    每个资源有容量
+    每个选择有代价
+
+
+通常：
+
+    容量
+        -> 边 cap
+
+    代价
+        -> 边 cost
+
+
+然后：
+
+    流 k 单位
+
+
+用：
+
+    min_cost_flow(S,T,k)
+
+
+=====================================================
+十六、典型题型 3：最大收益匹配
+=====================================================
+
+如果每个匹配收益：
+
+    w
+
+
+建边费用：
+
+    -w
+
+
+最终：
+
+    ans = -cost
+
+
+=====================================================
+十七、和普通最大流的区别
+=====================================================
+
+普通最大流：
+
+    只关心最多流多少
+
+
+最小费用最大流：
+
+    第一目标：
+        流量最大
+
+    第二目标：
+        在最大流前提下
+        费用最小
+
+
+所以：
+
+    MCMF = 最大流 + 最短路
+
+
+=====================================================
+十八、常见易错点
+=====================================================
+
+1.
+反向边费用一定是：
+
+    -cost
+
+
+2.
+反向边初始容量一定是：
+
+    0
+
+
+3.
+只有：
+
+    cap > 0
+
+的边才能走。
+
+
+4.
+更新残量：
+
+正边：
+
+    cap -= add
+
+反边：
+
+    cap += add
+
+
+5.
+费用更新：
+
+    cost += add * dis[T]
+
+
+6.
+最大收益：
+
+    费用取负
+    最后答案再取负
+
+
+7.
+如果题目要求恰好流 k：
+
+    不能直接跑最大流后就算完
+
+要限制：
+
+    flow <= k
+
+
+=====================================================
+十九、什么时候想到 MCMF
+=====================================================
+
+看到：
+
+    匹配 / 分配 / 选择
+
+同时又有：
+
+    容量限制
+
+并且：
+
+    每种选择还有花费 / 收益
+
+
+优先想：
+
+    最小费用最大流
+
+
+尤其是：
+
+    二分图匹配 + 权值
+
+
+如果只是：
+
+    无权最大匹配
+
+优先：
+
+    匈牙利 / Hopcroft-Karp
+
+
+如果是：
+
+    n × n 完美匹配 + 权值
+
+也可以：
+
+    KM
+
+
+如果限制更复杂：
+
+    MCMF 更通用。
+
+
+=====================================================
+二十、MCMF vs KM
+=====================================================
+
+KM：
+
+    主要解决
+    二分图最大权完美匹配
+
+    O(n^3)
+
+
+MCMF：
+
+    更通用
+
+    可以处理：
+        容量
+        不一定完美匹配
+        多单位流
+        复杂网络
+
+
+所以：
+
+简单标准带权完美匹配：
+
+    KM
+
+
+建模复杂：
+
+    MCMF
+
+
+=====================================================
+二十一、赛场写题顺序
+=====================================================
+
+1.
+先画：
+
+    S
+    中间层
+    T
+
+
+2.
+想每条边：
+
+    cap 是什么
+    cost 是什么
+
+
+3.
+写：
+
+    add_edge()
+
+
+4.
+写：
+
+    spfa()
+
+
+5.
+写：
+
+    min_cost_max_flow()
+
+
+6.
+检查：
+
+    flow 是否满足题目要求
+
+
+7.
+如果是收益：
+
+    记得费用取负
+
+
+=====================================================
+二十二、最短速记
+=====================================================
+
+一条边：
+
+    u -> v
+
+正边：
+
+    cap
+    cost
+
+
+反边：
+
+    0
+    -cost
+
+
+每轮：
+
+    SPFA 找费用最短路
+
+
+增广量：
+
+    路径上最小剩余容量
+
+
+更新：
+
+    正边 cap -= add
+    反边 cap += add
+
+
+累计：
+
+    flow += add
+    cost += add * dis[T]
+
+
+最大收益：
+
+    cost = -profit
+
+最后：
+
+    answer = -cost
+
+
+带权二分图：
+
+    S -> 左 -> 右 -> T
+
+容量：
+
+    全 1
+
+
+复杂限制 + 费用：
+
+    优先想 MCMF
