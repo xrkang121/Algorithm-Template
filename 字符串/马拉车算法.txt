@@ -1,0 +1,337 @@
+Manacher（马拉车）赛场板子
+========================
+
+用途：
+- O(n) 求最长回文子串
+- 求每个位置为中心的最大回文半径
+- O(1) 判断某个子串是否为回文
+- 统计回文子串个数
+
+默认：
+- 原字符串下标从 0 开始
+- p[i] 表示新字符串中以 i 为中心的最大回文半径
+- 原串中的最长回文长度 = max(p[i])
+
+
+================================================
+一、核心板子
+================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+vector<int> manacher(const string &s)
+{
+    string str = "^";
+
+    for (int i = 0; i < s.size(); i++)
+    {
+        str += '#';
+        str += s[i];
+    }
+
+    str += "#$";
+
+    int n = str.size();
+
+    vector<int> p(n);
+
+    int mid = 0;
+    int right = 0;
+
+    for (int i = 1; i < n - 1; i++)
+    {
+        if (i < right)
+        {
+            p[i] = min(p[2 * mid - i], right - i);
+        }
+
+        while (str[i + p[i] + 1] == str[i - p[i] - 1])
+        {
+            p[i]++;
+        }
+
+        if (i + p[i] > right)
+        {
+            mid = i;
+            right = i + p[i];
+        }
+    }
+
+    return p;
+}
+
+
+================================================
+二、基本使用
+================================================
+
+string s;
+cin >> s;
+
+vector<int> p = manacher(s);
+
+
+================================================
+三、最长回文子串长度
+================================================
+
+int ans = 0;
+
+for (int i = 0; i < p.size(); i++)
+{
+    ans = max(ans, p[i]);
+}
+
+cout << ans << '\n';
+
+
+================================================
+四、输出一个最长回文子串
+================================================
+
+int mx = 0;
+int pos = 0;
+
+for (int i = 0; i < p.size(); i++)
+{
+    if (p[i] > mx)
+    {
+        mx = p[i];
+        pos = i;
+    }
+}
+
+int l = (pos - mx) / 2;
+
+cout << s.substr(l, mx) << '\n';
+
+
+其中：
+
+    mx = 最长回文长度
+
+    l = 最长回文在原字符串中的左端点
+
+
+================================================
+五、O(1) 判断 s[l...r] 是否为回文
+================================================
+
+原字符串下标：
+
+    0 <= l <= r < s.size()
+
+
+对应到 Manacher 新字符串后：
+
+    center = l + r + 2
+
+需要的回文半径：
+
+    len = r - l + 1
+
+
+所以：
+
+bool is_palindrome(int l, int r, const vector<int> &p)
+{
+    int center = l + r + 2;
+    int len = r - l + 1;
+
+    return p[center] >= len;
+}
+
+
+使用：
+
+if (is_palindrome(l, r, p))
+{
+    // s[l...r] 是回文
+}
+
+
+================================================
+六、统计所有回文子串数量
+================================================
+
+int ans = 0;
+
+for (int i = 1; i + 1 < p.size(); i++)
+{
+    ans += (p[i] + 1) / 2;
+}
+
+cout << ans << '\n';
+
+
+注意：
+
+这里统计的是：
+
+    回文子串出现次数
+
+相同内容出现在不同位置会分别计算。
+
+
+================================================
+七、p[i] 怎么用
+================================================
+
+Manacher 构造的新字符串：
+
+例如：
+
+    s = "abba"
+
+变成：
+
+    ^#a#b#b#a#$
+
+
+p[i]：
+
+表示以新字符串位置 i 为中心，
+最多能向左右扩展多少格。
+
+
+重要：
+
+    p[i]
+
+直接就是它对应的：
+
+    原字符串回文长度
+
+
+所以最长回文直接：
+
+    max(p[i])
+
+
+================================================
+八、完整可运行版本
+================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+vector<int> manacher(const string &s)
+{
+    string str = "^";
+
+    for (int i = 0; i < s.size(); i++)
+    {
+        str += '#';
+        str += s[i];
+    }
+
+    str += "#$";
+
+    int n = str.size();
+
+    vector<int> p(n);
+
+    int mid = 0;
+    int right = 0;
+
+    for (int i = 1; i < n - 1; i++)
+    {
+        if (i < right)
+        {
+            p[i] = min(p[2 * mid - i], right - i);
+        }
+
+        while (str[i + p[i] + 1] == str[i - p[i] - 1])
+        {
+            p[i]++;
+        }
+
+        if (i + p[i] > right)
+        {
+            mid = i;
+            right = i + p[i];
+        }
+    }
+
+    return p;
+}
+
+bool is_palindrome(int l, int r, const vector<int> &p)
+{
+    int center = l + r + 2;
+    int len = r - l + 1;
+
+    return p[center] >= len;
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    string s;
+    cin >> s;
+
+    vector<int> p = manacher(s);
+
+    int mx = 0;
+    int pos = 0;
+
+    for (int i = 0; i < p.size(); i++)
+    {
+        if (p[i] > mx)
+        {
+            mx = p[i];
+            pos = i;
+        }
+    }
+
+    cout << mx << '\n';
+
+    return 0;
+}
+
+
+================================================
+九、赛场速查
+================================================
+
+预处理：
+
+    vector<int> p = manacher(s);
+
+
+最长回文长度：
+
+    max(p[i])
+
+
+最长回文左端点：
+
+    l = (pos - p[pos]) / 2
+
+
+最长回文字符串：
+
+    s.substr(l, p[pos])
+
+
+判断 s[l...r] 是否回文：
+
+    p[l + r + 2] >= r - l + 1
+
+
+回文子串总数：
+
+    ∑ (p[i] + 1) / 2
+
+
+复杂度：
+
+    时间 O(n)
+    空间 O(n)
