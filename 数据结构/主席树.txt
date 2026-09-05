@@ -1,0 +1,1172 @@
+最常见用途：
+- 静态数组区间第 k 小
+- 区间中 ≤ x 的数有多少个
+- 区间中某个值出现多少次
+
+最经典场景：
+
+    给数组 a[1...n]
+
+    多次询问：
+
+        [l,r] 中第 k 小是多少
+
+复杂度：
+
+    建树：O(n log n)
+    单次查询：O(log n)
+    空间：O(n log n)
+
+
+================================================
+一、先记住主席树到底在存什么
+================================================
+
+对数组：
+
+    a1, a2, a3, ... , an
+
+我们建立：
+
+    root[0]
+    root[1]
+    root[2]
+    ...
+    root[n]
+
+
+其中：
+
+    root[i]
+
+表示：
+
+    前 i 个数
+
+    a1 ... ai
+
+组成的一棵“值域线段树”。
+
+
+所以：
+
+    root[r] - root[l-1]
+
+就代表：
+
+    区间 a[l...r]
+
+
+这就是主席树最重要的一句话。
+
+
+================================================
+二、为什么可以相减
+================================================
+
+例如：
+
+    root[r]
+
+统计前 r 个数中，
+每个值出现了多少次。
+
+
+    root[l-1]
+
+统计前 l-1 个数。
+
+
+那么：
+
+    root[r] 的数量
+    -
+    root[l-1] 的数量
+
+恰好就是：
+
+    a[l...r]
+
+
+所以查询区间 [l,r] 时：
+
+    永远同时拿两棵树：
+
+        root[r]
+        root[l-1]
+
+
+================================================
+三、为什么要离散化
+================================================
+
+数组值可能是：
+
+    10
+    1000000000
+    -123456
+
+
+但主席树只关心：
+
+    大小顺序
+
+
+所以先排序去重：
+
+vector<int> value = a;
+
+sort(value.begin() + 1, value.end());
+
+value.erase(
+    unique(value.begin() + 1, value.end()),
+    value.end()
+);
+
+
+然后：
+
+    a[i]
+
+映射为：
+
+    lower_bound(...) 得到的排名
+
+
+例如：
+
+原值：
+
+    100 20 50
+
+离散后：
+
+    100 -> 3
+    20  -> 1
+    50  -> 2
+
+
+查询得到排名后，
+最后再映射回原值。
+
+
+================================================
+四、节点结构
+================================================
+
+struct Node
+{
+    int lson;
+    int rson;
+
+    int sum;
+};
+
+
+含义：
+
+    lson
+        左儿子节点编号
+
+    rson
+        右儿子节点编号
+
+    sum
+        当前值域中一共出现了多少个数
+
+
+================================================
+五、最核心：新版本怎么建立
+================================================
+
+每加入一个数：
+
+    root[i]
+
+从：
+
+    root[i-1]
+
+复制出来。
+
+
+但是：
+
+    不会复制整棵树。
+
+
+只复制：
+
+    从根到这个数所在叶子的路径
+
+
+其他没变的部分：
+
+    继续共用旧版本节点
+
+
+所以每插入一个数：
+
+    只增加 O(log n) 个节点。
+
+
+================================================
+六、轻量核心板子
+================================================
+
+const int MAXN = 2e5 + 5;
+const int MAXNODE = MAXN * 25;
+
+struct Node
+{
+    int lson;
+    int rson;
+
+    int sum;
+};
+
+Node tree[MAXNODE];
+
+int root[MAXN];
+
+int top = 0;
+
+
+int insert(int pre, int l, int r, int pos)
+{
+    int now = ++top;
+
+    tree[now] = tree[pre];
+
+    tree[now].sum++;
+
+    if (l == r)
+    {
+        return now;
+    }
+
+    int mid = (l + r) >> 1;
+
+    if (pos <= mid)
+    {
+        tree[now].lson =
+            insert(tree[pre].lson, l, mid, pos);
+    }
+    else
+    {
+        tree[now].rson =
+            insert(tree[pre].rson, mid + 1, r, pos);
+    }
+
+    return now;
+}
+
+
+================================================
+七、insert 里最重要的一句
+================================================
+
+    tree[now] = tree[pre];
+
+
+意思：
+
+    新版本先完整继承旧版本当前节点。
+
+
+然后：
+
+    tree[now].sum++;
+
+
+表示：
+
+    新版本比旧版本多加入了一个数。
+
+
+接下来只修改：
+
+    pos 所在的那一边。
+
+
+================================================
+八、区间第 k 小
+================================================
+
+核心函数：
+
+int query_kth(
+    int left_root,
+    int right_root,
+    int l,
+    int r,
+    int k
+)
+{
+    if (l == r)
+    {
+        return l;
+    }
+
+    int left_count =
+        tree[tree[right_root].lson].sum
+        -
+        tree[tree[left_root].lson].sum;
+
+    int mid = (l + r) >> 1;
+
+    if (k <= left_count)
+    {
+        return query_kth(
+            tree[left_root].lson,
+            tree[right_root].lson,
+            l,
+            mid,
+            k
+        );
+    }
+    else
+    {
+        return query_kth(
+            tree[left_root].rson,
+            tree[right_root].rson,
+            mid + 1,
+            r,
+            k - left_count
+        );
+    }
+}
+
+
+================================================
+九、第 k 小的核心逻辑
+================================================
+
+查询：
+
+    [L,R] 中第 k 小
+
+
+传：
+
+    left_root  = root[L-1]
+    right_root = root[R]
+
+
+先算左半边有多少个数：
+
+    left_count
+    =
+    right 左儿子的 sum
+    -
+    left 左儿子的 sum
+
+
+如果：
+
+    k <= left_count
+
+说明第 k 小在左边。
+
+
+否则：
+
+    去右边
+
+并且：
+
+    k -= left_count
+
+
+这就是普通权值线段树找第 k 小，
+只是数量变成了：
+
+    两个版本做差。
+
+
+================================================
+十、完整模板：静态区间第 k 小
+================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int MAXN = 2e5 + 5;
+const int MAXNODE = MAXN * 25;
+
+struct Node
+{
+    int lson;
+    int rson;
+
+    int sum;
+};
+
+Node tree[MAXNODE];
+
+int root[MAXN];
+
+int top = 0;
+
+
+int insert(int pre, int l, int r, int pos)
+{
+    int now = ++top;
+
+    tree[now] = tree[pre];
+
+    tree[now].sum++;
+
+    if (l == r)
+    {
+        return now;
+    }
+
+    int mid = (l + r) >> 1;
+
+    if (pos <= mid)
+    {
+        tree[now].lson =
+            insert(tree[pre].lson, l, mid, pos);
+    }
+    else
+    {
+        tree[now].rson =
+            insert(tree[pre].rson, mid + 1, r, pos);
+    }
+
+    return now;
+}
+
+
+int query_kth(
+    int left_root,
+    int right_root,
+    int l,
+    int r,
+    int k
+)
+{
+    if (l == r)
+    {
+        return l;
+    }
+
+    int left_count =
+        tree[tree[right_root].lson].sum
+        -
+        tree[tree[left_root].lson].sum;
+
+    int mid = (l + r) >> 1;
+
+    if (k <= left_count)
+    {
+        return query_kth(
+            tree[left_root].lson,
+            tree[right_root].lson,
+            l,
+            mid,
+            k
+        );
+    }
+    else
+    {
+        return query_kth(
+            tree[left_root].rson,
+            tree[right_root].rson,
+            mid + 1,
+            r,
+            k - left_count
+        );
+    }
+}
+
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, q;
+    cin >> n >> q;
+
+    vector<int> a(n + 1);
+    vector<int> value(n + 1);
+
+    for (int i = 1; i <= n; i++)
+    {
+        cin >> a[i];
+
+        value[i] = a[i];
+    }
+
+    sort(value.begin() + 1, value.end());
+
+    int m =
+        unique(value.begin() + 1, value.end())
+        - value.begin()
+        - 1;
+
+    root[0] = 0;
+
+    for (int i = 1; i <= n; i++)
+    {
+        int pos =
+            lower_bound(
+                value.begin() + 1,
+                value.begin() + m + 1,
+                a[i]
+            )
+            - value.begin();
+
+        root[i] =
+            insert(root[i - 1], 1, m, pos);
+    }
+
+    while (q--)
+    {
+        int l, r, k;
+        cin >> l >> r >> k;
+
+        int pos =
+            query_kth(
+                root[l - 1],
+                root[r],
+                1,
+                m,
+                k
+            );
+
+        cout << value[pos] << '\n';
+    }
+
+    return 0;
+}
+
+
+================================================
+十一、怎么直接用
+================================================
+
+题目：
+
+    查询 [l,r] 第 k 小
+
+
+直接：
+
+int pos =
+    query_kth(
+        root[l - 1],
+        root[r],
+        1,
+        m,
+        k
+    );
+
+int ans = value[pos];
+
+
+================================================
+十二、区间中某个值出现多少次
+================================================
+
+如果已经知道这个值离散后的：
+
+    pos
+
+
+可以查询这个叶子的数量差。
+
+
+int query_point(
+    int left_root,
+    int right_root,
+    int l,
+    int r,
+    int pos
+)
+{
+    if (l == r)
+    {
+        return
+            tree[right_root].sum
+            -
+            tree[left_root].sum;
+    }
+
+    int mid = (l + r) >> 1;
+
+    if (pos <= mid)
+    {
+        return query_point(
+            tree[left_root].lson,
+            tree[right_root].lson,
+            l,
+            mid,
+            pos
+        );
+    }
+    else
+    {
+        return query_point(
+            tree[left_root].rson,
+            tree[right_root].rson,
+            mid + 1,
+            r,
+            pos
+        );
+    }
+}
+
+
+调用：
+
+    query_point(
+        root[l-1],
+        root[r],
+        1,
+        m,
+        pos
+    );
+
+
+================================================
+十三、区间中 ≤ x 的数有多少个
+================================================
+
+先找到：
+
+    x
+
+在离散数组中对应的最后一个：
+
+    value[pos] <= x
+
+
+代码：
+
+int pos =
+    upper_bound(
+        value.begin() + 1,
+        value.begin() + m + 1,
+        x
+    )
+    - value.begin()
+    - 1;
+
+
+然后查询值域：
+
+    [1,pos]
+
+
+函数：
+
+int query_count(
+    int left_root,
+    int right_root,
+    int l,
+    int r,
+    int ql,
+    int qr
+)
+{
+    if (ql <= l && r <= qr)
+    {
+        return
+            tree[right_root].sum
+            -
+            tree[left_root].sum;
+    }
+
+    int mid = (l + r) >> 1;
+
+    int ans = 0;
+
+    if (ql <= mid)
+    {
+        ans += query_count(
+            tree[left_root].lson,
+            tree[right_root].lson,
+            l,
+            mid,
+            ql,
+            qr
+        );
+    }
+
+    if (qr > mid)
+    {
+        ans += query_count(
+            tree[left_root].rson,
+            tree[right_root].rson,
+            mid + 1,
+            r,
+            ql,
+            qr
+        );
+    }
+
+    return ans;
+}
+
+
+调用：
+
+if (pos == 0)
+{
+    ans = 0;
+}
+else
+{
+    ans =
+        query_count(
+            root[l - 1],
+            root[r],
+            1,
+            m,
+            1,
+            pos
+        );
+}
+
+
+================================================
+十四、区间中 < x / ≥ x / > x
+================================================
+
+有了：
+
+    count(≤x)
+
+其他直接算。
+
+
+区间长度：
+
+    len = r-l+1
+
+
+< x：
+
+    count(≤ x-1)
+
+
+> x：
+
+    len - count(≤x)
+
+
+≥ x：
+
+    len - count(<x)
+
+
+如果值域不是整数连续，
+用 lower_bound / upper_bound 找排名即可。
+
+
+================================================
+十五、主席树最容易看懂的方式
+================================================
+
+你可以把：
+
+    root[i]
+
+想成：
+
+    “前 i 个数的频率表”
+
+
+只是频率表不是数组，
+而是一棵权值线段树。
+
+
+于是：
+
+    root[r] - root[l-1]
+
+就是：
+
+    “区间 [l,r] 的频率表”
+
+
+然后：
+
+第 k 小：
+
+    在这张频率表上找第 k 个数
+
+
+≤ x 个数：
+
+    查询值域 [最小值,x] 的总频率
+
+
+================================================
+十六、不需要 build()
+================================================
+
+这个板子没有 build。
+
+
+因为：
+
+    tree[0]
+
+全局数组默认全是 0。
+
+
+所有不存在的儿子：
+
+    都指向 0
+
+
+所以：
+
+    root[0] = 0
+
+就相当于：
+
+    一棵全空的树。
+
+
+每次 insert 时按需要动态创建节点即可。
+
+
+这样赛场代码更轻。
+
+
+================================================
+十七、节点数开多少
+================================================
+
+每插入一个数：
+
+    新建 O(log n) 个节点
+
+
+所以：
+
+    n = 2e5
+
+一般：
+
+    MAXNODE = MAXN * 25
+
+够用。
+
+
+如果：
+
+    n = 1e6
+
+就要相应扩大。
+
+
+大致：
+
+    节点数 ≈ n × (log2 n + 2)
+
+
+================================================
+十八、常见题型
+================================================
+
+看到：
+
+    静态数组
+    多次区间查询
+    第 k 小
+
+
+直接：
+
+    主席树
+
+
+--------------------------------
+
+看到：
+
+    [l,r] 中
+    小于 / 大于 / 不超过某个值的数量
+
+也可以：
+
+    主席树
+
+
+--------------------------------
+
+看到：
+
+    多个历史版本
+    每次修改后还要访问旧版本
+
+考虑：
+
+    可持久化线段树
+
+
+================================================
+十九、普通线段树和主席树区别
+================================================
+
+普通线段树：
+
+    修改新版本后
+    旧版本没了
+
+
+主席树：
+
+    修改时只复制修改路径
+
+所以：
+
+    每个历史版本都保留下来
+
+
+root[1]
+root[2]
+root[3]
+...
+
+都能继续查询。
+
+
+================================================
+二十、区间第 k 小写题顺序
+================================================
+
+赛场看到题后按这个顺序写：
+
+1.
+离散化：
+
+    value
+
+
+2.
+写 Node：
+
+    lson
+    rson
+    sum
+
+
+3.
+写 insert：
+
+    tree[now] = tree[pre]
+    sum++
+    递归修改一边
+
+
+4.
+建立：
+
+    root[i] = insert(root[i-1], ...)
+
+
+5.
+写 query_kth：
+
+    左边数量
+    =
+    right.left.sum - left.left.sum
+
+
+6.
+输出：
+
+    value[pos]
+
+
+================================================
+二十一、最常见易错点
+================================================
+
+1.
+查询区间 [l,r]：
+
+一定是：
+
+    root[r]
+    root[l-1]
+
+
+不是：
+
+    root[l]
+    root[r]
+
+
+--------------------------------
+
+2.
+query_kth 返回的是：
+
+    离散后的排名
+
+最后要：
+
+    value[pos]
+
+
+--------------------------------
+
+3.
+第 k 小要求：
+
+    1 <= k <= r-l+1
+
+
+--------------------------------
+
+4.
+节点空间一定要开够：
+
+    O(n log n)
+
+
+--------------------------------
+
+5.
+离散化后实际大小是：
+
+    m
+
+线段树值域：
+
+    [1,m]
+
+
+--------------------------------
+
+6.
+tree[0] 必须是全 0。
+
+全局数组天然满足。
+
+
+================================================
+二十二、什么时候不要用主席树
+================================================
+
+如果有大量在线修改：
+
+    普通静态主席树不能直接解决
+
+
+可能考虑：
+
+    树状数组套主席树
+    动态开点线段树
+    整体二分
+    分块
+    其他数据结构
+
+
+如果只是：
+
+    一个区间第 k 小查询
+
+没必要上主席树。
+
+
+主席树最适合：
+
+    静态数组
+    多询问
+
+
+================================================
+二十三、最短速记
+================================================
+
+版本：
+
+    root[i]
+    =
+    前 i 个数
+
+
+区间：
+
+    [l,r]
+    =
+    root[r] - root[l-1]
+
+
+插入：
+
+    新版本复制旧版本
+
+    tree[now] = tree[pre]
+
+然后：
+
+    sum++
+
+只新建：
+
+    根到 pos 的路径
+
+
+第 k 小：
+
+    left_count
+    =
+    rightRoot.left.sum
+    -
+    leftRoot.left.sum
+
+
+如果：
+
+    k <= left_count
+
+走左边。
+
+
+否则：
+
+    走右边
+    k -= left_count
+
+
+复杂度：
+
+    建树 O(n log n)
+    查询 O(log n)
+    空间 O(n log n)
+
+
+================================================
+二十四、一句话理解
+================================================
+
+主席树就是：
+
+    给每一个前缀
+    保存一棵“值出现次数线段树”。
+
+
+因此：
+
+    两个前缀版本相减
+
+就能得到：
+
+    任意区间 [l,r] 的值频率。
+
+
+最经典应用：
+
+    区间第 k 小。
