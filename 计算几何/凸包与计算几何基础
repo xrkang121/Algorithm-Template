@@ -1,0 +1,1173 @@
+用途：
+- 判断点在直线哪一侧
+- 判断点是否在线段上
+- 判断两线段是否相交
+- 求多边形面积
+- 求二维点集凸包（Andrew）
+- 求凸包周长
+
+默认：
+- 坐标是整数
+- 使用 long long
+- 叉积中间值使用 __int128，避免乘法溢出
+- 不讲复杂几何，只保留比赛最常用部分
+
+
+================================================
+一、Point 结构体
+================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct Point
+{
+    int x;
+    int y;
+
+    bool operator < (const Point &other) const
+    {
+        if (x != other.x)
+        {
+            return x < other.x;
+        }
+
+        return y < other.y;
+    }
+
+    bool operator == (const Point &other) const
+    {
+        return x == other.x && y == other.y;
+    }
+};
+
+
+================================================
+二、叉积：计算几何最重要的东西
+================================================
+
+对于三个点：
+
+    A, B, C
+
+定义：
+
+    cross(A,B,C)
+    =
+    (B-A) × (C-A)
+
+
+代码：
+
+__int128 cross(const Point &a, const Point &b, const Point &c)
+{
+    return
+        (__int128)(b.x - a.x) * (c.y - a.y)
+        -
+        (__int128)(b.y - a.y) * (c.x - a.x);
+}
+
+
+================================================
+三、叉积符号代表什么
+================================================
+
+看：
+
+    cross(A,B,C)
+
+
+如果：
+
+    > 0
+
+表示：
+
+    C 在有向直线 A -> B 的左侧
+
+
+如果：
+
+    < 0
+
+表示：
+
+    C 在有向直线 A -> B 的右侧
+
+
+如果：
+
+    = 0
+
+表示：
+
+    A,B,C 三点共线
+
+
+所以比赛中看到：
+
+    左转
+    右转
+    共线
+    凸包
+    线段相交
+
+第一反应就是：
+
+    cross
+
+
+================================================
+四、符号函数
+================================================
+
+int sgn(__int128 x)
+{
+    if (x > 0)
+    {
+        return 1;
+    }
+
+    if (x < 0)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+
+================================================
+五、点积
+================================================
+
+定义：
+
+    (A-B) · (C-B)
+
+
+代码：
+
+__int128 dot(
+    const Point &a,
+    const Point &b,
+    const Point &c
+)
+{
+    return
+        (__int128)(a.x - b.x) * (c.x - b.x)
+        +
+        (__int128)(a.y - b.y) * (c.y - b.y);
+}
+
+
+常见用途：
+
+    判断点是否在线段内部
+    判断夹角
+    判断投影关系
+
+
+================================================
+六、判断点 P 是否在线段 AB 上
+================================================
+
+条件：
+
+1.
+    A,B,P 共线
+
+2.
+    P 位于 A,B 之间
+
+
+代码：
+
+bool on_segment(
+    const Point &a,
+    const Point &b,
+    const Point &p
+)
+{
+    if (cross(a, b, p) != 0)
+    {
+        return false;
+    }
+
+    return
+        min(a.x, b.x) <= p.x &&
+        p.x <= max(a.x, b.x) &&
+        min(a.y, b.y) <= p.y &&
+        p.y <= max(a.y, b.y);
+}
+
+
+也可以用点积判断：
+
+    (P-A) · (P-B) <= 0
+
+
+但比赛里上面的 min/max 版本最直观。
+
+
+================================================
+七、判断两条线段是否相交
+================================================
+
+线段：
+
+    AB
+    CD
+
+
+包括：
+
+    正常穿过
+    端点接触
+    部分重合
+
+
+代码：
+
+bool segment_intersect(
+    const Point &a,
+    const Point &b,
+    const Point &c,
+    const Point &d
+)
+{
+    __int128 c1 = cross(a, b, c);
+    __int128 c2 = cross(a, b, d);
+
+    __int128 c3 = cross(c, d, a);
+    __int128 c4 = cross(c, d, b);
+
+    if (sgn(c1) * sgn(c2) < 0 &&
+        sgn(c3) * sgn(c4) < 0)
+    {
+        return true;
+    }
+
+    if (c1 == 0 && on_segment(a, b, c))
+    {
+        return true;
+    }
+
+    if (c2 == 0 && on_segment(a, b, d))
+    {
+        return true;
+    }
+
+    if (c3 == 0 && on_segment(c, d, a))
+    {
+        return true;
+    }
+
+    if (c4 == 0 && on_segment(c, d, b))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
+================================================
+八、严格相交
+================================================
+
+如果题目只算：
+
+    两条线段内部真正交叉
+
+不算：
+
+    端点接触
+    共线重合
+
+
+则：
+
+bool strict_intersect(
+    const Point &a,
+    const Point &b,
+    const Point &c,
+    const Point &d
+)
+{
+    return
+        sgn(cross(a, b, c)) * sgn(cross(a, b, d)) < 0
+        &&
+        sgn(cross(c, d, a)) * sgn(cross(c, d, b)) < 0;
+}
+
+
+================================================
+九、两点距离
+================================================
+
+long double dis(
+    const Point &a,
+    const Point &b
+)
+{
+    long double dx = a.x - b.x;
+    long double dy = a.y - b.y;
+
+    return sqrt(dx * dx + dy * dy);
+}
+
+
+如果只比较距离大小：
+
+不要开根号。
+
+直接比较：
+
+    dx*dx + dy*dy
+
+
+================================================
+十、多边形面积
+================================================
+
+点按顺时针或逆时针顺序给出：
+
+    p[0], p[1], ..., p[n-1]
+
+
+两倍有向面积：
+
+       n-1
+S2 =   Σ (xi yi+1 - yi xi+1)
+       i=0
+
+其中：
+
+    p[n] = p[0]
+
+
+代码：
+
+__int128 polygon_area2(const vector<Point> &p)
+{
+    __int128 ans = 0;
+
+    int n = p.size();
+
+    for (int i = 0; i < n; i++)
+    {
+        int j = (i + 1) % n;
+
+        ans +=
+            (__int128)p[i].x * p[j].y
+            -
+            (__int128)p[i].y * p[j].x;
+    }
+
+    if (ans < 0)
+    {
+        ans = -ans;
+    }
+
+    return ans;
+}
+
+
+实际面积：
+
+    area = area2 / 2
+
+
+如果题目要求输出：
+
+    x.0
+    x.5
+
+可以直接根据 area2 奇偶输出。
+
+
+================================================
+十一、凸包是什么
+================================================
+
+给很多点。
+
+凸包就是：
+
+    能把所有点包住的最小凸多边形。
+
+
+比赛最常用算法：
+
+    Andrew
+
+
+复杂度：
+
+    O(n log n)
+
+
+主要复杂度来自：
+
+    排序
+
+
+================================================
+十二、Andrew 凸包核心规则
+================================================
+
+先把所有点按：
+
+    x 从小到大
+    y 从小到大
+
+排序。
+
+
+然后分别构造：
+
+    下凸壳
+    上凸壳
+
+
+每加入一个新点：
+
+如果最后三个点：
+
+    不是“左转”
+
+就把中间那个点删掉。
+
+
+即：
+
+    cross(a,b,c) <= 0
+
+则：
+
+    pop_back()
+
+
+这版会删除边上的共线点：
+
+    最终只保留凸包拐点。
+
+
+================================================
+十三、Andrew 凸包板子
+================================================
+
+vector<Point> convex_hull(vector<Point> p)
+{
+    sort(p.begin(), p.end());
+
+    p.erase(
+        unique(p.begin(), p.end()),
+        p.end()
+    );
+
+    int n = p.size();
+
+    if (n <= 1)
+    {
+        return p;
+    }
+
+    vector<Point> hull;
+
+
+    // 下凸壳
+    for (int i = 0; i < n; i++)
+    {
+        while (
+            hull.size() >= 2 &&
+            cross(
+                hull[hull.size() - 2],
+                hull[hull.size() - 1],
+                p[i]
+            ) <= 0
+        )
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(p[i]);
+    }
+
+
+    // 上凸壳
+    int lower_size = hull.size();
+
+    for (int i = n - 2; i >= 0; i--)
+    {
+        while (
+            hull.size() > lower_size &&
+            cross(
+                hull[hull.size() - 2],
+                hull[hull.size() - 1],
+                p[i]
+            ) <= 0
+        )
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(p[i]);
+    }
+
+
+    // 起点被重复加入了一次
+    hull.pop_back();
+
+    return hull;
+}
+
+
+================================================
+十四、凸包返回什么
+================================================
+
+调用：
+
+vector<Point> hull = convex_hull(p);
+
+
+返回：
+
+    凸包上的点
+
+
+顺序：
+
+    逆时针
+
+
+不会重复：
+
+    第一个点不会在最后再出现一次
+
+
+所以：
+
+    hull.size()
+
+就是凸包顶点数。
+
+
+================================================
+十五、如果要求保留凸包边上的共线点
+================================================
+
+当前代码：
+
+    cross(...) <= 0
+
+表示：
+
+    共线点也删除
+
+
+如果题目要求：
+
+    凸包边界上的所有点都保留
+
+把：
+
+    <= 0
+
+改成：
+
+    < 0
+
+
+也就是：
+
+    只有右转才删
+
+
+但是注意：
+
+    如果所有点全部共线，
+    “保留全部边界点”的写法需要单独处理，
+    否则上下壳可能出现重复。
+
+
+普通凸包题：
+
+    默认用 <= 0
+
+最稳。
+
+
+================================================
+十六、凸包周长
+================================================
+
+vector<Point> hull = convex_hull(p);
+
+long double ans = 0;
+
+int n = hull.size();
+
+for (int i = 0; i < n; i++)
+{
+    ans += dis(
+        hull[i],
+        hull[(i + 1) % n]
+    );
+}
+
+
+特殊情况：
+
+如果：
+
+    hull.size() == 1
+
+周长通常是：
+
+    0
+
+
+如果：
+
+    hull.size() == 2
+
+上面的循环会得到：
+
+    两点距离 × 2
+
+
+这通常就是“退化凸包”的周长定义。
+
+具体看题意。
+
+
+================================================
+十七、凸包面积
+================================================
+
+vector<Point> hull = convex_hull(p);
+
+__int128 area2 = polygon_area2(hull);
+
+
+实际面积：
+
+    area = area2 / 2
+
+
+================================================
+十八、完整基础模板
+================================================
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct Point
+{
+    int x;
+    int y;
+
+    bool operator < (const Point &other) const
+    {
+        if (x != other.x)
+        {
+            return x < other.x;
+        }
+
+        return y < other.y;
+    }
+
+    bool operator == (const Point &other) const
+    {
+        return x == other.x && y == other.y;
+    }
+};
+
+
+__int128 cross(
+    const Point &a,
+    const Point &b,
+    const Point &c
+)
+{
+    return
+        (__int128)(b.x - a.x) * (c.y - a.y)
+        -
+        (__int128)(b.y - a.y) * (c.x - a.x);
+}
+
+
+int sgn(__int128 x)
+{
+    if (x > 0)
+    {
+        return 1;
+    }
+
+    if (x < 0)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+
+bool on_segment(
+    const Point &a,
+    const Point &b,
+    const Point &p
+)
+{
+    if (cross(a, b, p) != 0)
+    {
+        return false;
+    }
+
+    return
+        min(a.x, b.x) <= p.x &&
+        p.x <= max(a.x, b.x) &&
+        min(a.y, b.y) <= p.y &&
+        p.y <= max(a.y, b.y);
+}
+
+
+bool segment_intersect(
+    const Point &a,
+    const Point &b,
+    const Point &c,
+    const Point &d
+)
+{
+    __int128 c1 = cross(a, b, c);
+    __int128 c2 = cross(a, b, d);
+
+    __int128 c3 = cross(c, d, a);
+    __int128 c4 = cross(c, d, b);
+
+    if (sgn(c1) * sgn(c2) < 0 &&
+        sgn(c3) * sgn(c4) < 0)
+    {
+        return true;
+    }
+
+    if (c1 == 0 && on_segment(a, b, c))
+    {
+        return true;
+    }
+
+    if (c2 == 0 && on_segment(a, b, d))
+    {
+        return true;
+    }
+
+    if (c3 == 0 && on_segment(c, d, a))
+    {
+        return true;
+    }
+
+    if (c4 == 0 && on_segment(c, d, b))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
+long double dis(
+    const Point &a,
+    const Point &b
+)
+{
+    long double dx = a.x - b.x;
+    long double dy = a.y - b.y;
+
+    return sqrt(dx * dx + dy * dy);
+}
+
+
+vector<Point> convex_hull(vector<Point> p)
+{
+    sort(p.begin(), p.end());
+
+    p.erase(
+        unique(p.begin(), p.end()),
+        p.end()
+    );
+
+    int n = p.size();
+
+    if (n <= 1)
+    {
+        return p;
+    }
+
+    vector<Point> hull;
+
+
+    for (int i = 0; i < n; i++)
+    {
+        while (
+            hull.size() >= 2 &&
+            cross(
+                hull[hull.size() - 2],
+                hull[hull.size() - 1],
+                p[i]
+            ) <= 0
+        )
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(p[i]);
+    }
+
+
+    int lower_size = hull.size();
+
+    for (int i = n - 2; i >= 0; i--)
+    {
+        while (
+            hull.size() > lower_size &&
+            cross(
+                hull[hull.size() - 2],
+                hull[hull.size() - 1],
+                p[i]
+            ) <= 0
+        )
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(p[i]);
+    }
+
+
+    hull.pop_back();
+
+    return hull;
+}
+
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+
+    vector<Point> p(n);
+
+    for (int i = 0; i < n; i++)
+    {
+        cin >> p[i].x >> p[i].y;
+    }
+
+    vector<Point> hull = convex_hull(p);
+
+    cout << hull.size() << '\n';
+
+    for (int i = 0; i < hull.size(); i++)
+    {
+        cout
+            << hull[i].x
+            << ' '
+            << hull[i].y
+            << '\n';
+    }
+
+    return 0;
+}
+
+
+================================================
+十九、Andrew 为什么一直 pop
+================================================
+
+假设凸包最后两个点是：
+
+    A, B
+
+
+现在加入：
+
+    C
+
+
+如果：
+
+    cross(A,B,C) > 0
+
+说明：
+
+    A -> B -> C
+
+是左转，
+
+B 可以继续作为凸包顶点。
+
+
+如果：
+
+    cross(A,B,C) <= 0
+
+说明：
+
+    B 不应该保留在当前凸壳上
+
+所以：
+
+    pop B
+
+
+然后继续检查前一个点。
+
+
+================================================
+二十、什么时候想到凸包
+================================================
+
+看到：
+
+    给很多二维点
+
+然后问：
+
+    最外围的点
+    包住所有点的最小多边形
+    外壳周长
+    外壳面积
+    最外层边界
+
+
+第一反应：
+
+    凸包
+
+
+如果后面还问：
+
+    凸包最远点对
+
+再考虑：
+
+    旋转卡壳
+
+
+这份板子先不放旋转卡壳。
+
+
+================================================
+二十一、常见易错点
+================================================
+
+1.
+叉积顺序非常重要：
+
+    cross(A,B,C)
+
+表示：
+
+    AB × AC
+
+
+> 0：
+
+    C 在 AB 左边
+
+
+< 0：
+
+    C 在 AB 右边
+
+
+------------------------------------------------
+
+2.
+Andrew 中：
+
+    <= 0
+
+会删除共线点。
+
+
+    < 0
+
+会保留共线点。
+
+
+普通题默认：
+
+    <= 0
+
+
+------------------------------------------------
+
+3.
+一定先：
+
+    sort
+    unique
+
+
+否则重复点可能干扰凸包。
+
+
+------------------------------------------------
+
+4.
+最终：
+
+    hull.pop_back()
+
+因为起点最后重复加入了一次。
+
+
+------------------------------------------------
+
+5.
+坐标比较大时：
+
+    cross
+
+不要直接 long long 乱乘。
+
+推荐：
+
+    __int128
+
+
+------------------------------------------------
+
+6.
+浮点距离：
+
+    用 long double
+
+
+判断方向、共线：
+
+    尽量始终用整数叉积
+
+不要用浮点数。
+
+
+================================================
+二十二、赛场写题顺序
+================================================
+
+基础几何题：
+
+1.
+写 Point
+
+
+2.
+写 cross
+
+
+3.
+需要线段判断：
+
+    on_segment
+    segment_intersect
+
+
+4.
+需要凸包：
+
+    sort + unique
+    Andrew
+
+
+5.
+题目要求周长：
+
+    dis
+
+
+6.
+题目要求面积：
+
+    polygon_area2
+
+
+================================================
+二十三、最短速记
+================================================
+
+叉积：
+
+    cross(A,B,C)
+    =
+    (B-A) × (C-A)
+
+
+符号：
+
+    > 0  左转
+    < 0  右转
+    = 0  共线
+
+
+点在线段：
+
+    cross = 0
+    +
+    坐标在端点范围内
+
+
+线段相交：
+
+    两边互相跨立
+    +
+    单独处理共线端点
+
+
+Andrew：
+
+    排序
+    ↓
+    下凸壳
+    ↓
+    上凸壳
+    ↓
+    最后删重复起点
+
+
+维护条件：
+
+    cross(last2,last1,new) <= 0
+
+就：
+
+    pop_back()
+
+
+复杂度：
+
+    O(n log n)
+
+
+================================================
+二十四、一句话理解
+================================================
+
+基础计算几何最重要的就是：
+
+    叉积
+
+
+凸包最重要的就是：
+
+    排序后不断维护“左转”。
+
