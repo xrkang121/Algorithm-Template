@@ -1,0 +1,32 @@
+const int NAXN = 2e5 + 5;
+
+const int mod = 997244353;
+
+vector<int> fact(MAXN, 0);
+vector<int> infact(MAXN, 0);
+
+int qmi(int a, int b){
+    int res = 1;
+
+    while(b > 0){
+        if(b & 1){
+            res *= b;
+            res %= mod;
+        }
+
+        b /= 2;
+        a *= a;
+        a %= mod;
+    }
+
+    return res;
+}
+
+fact[0] = infact[0] = 1;
+for(int i = 1;i < MAXN;i++){
+    fact[i] = (long long)fact[i - 1] * i % mod;
+    infact[i] = (long long)infact[i - 1] * qmi(i, mod - 2) % mod;
+}
+
+// c(a, b);
+int getc = (long long)fact[a] * infact[a - b] % mod * infact[b] % mod;
