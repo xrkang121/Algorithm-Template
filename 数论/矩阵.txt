@@ -1,0 +1,227 @@
+矩阵模板（1-based）
+
+适用：
+1. 矩阵乘法
+2. 矩阵快速幂
+3. 转移矩阵 + 状态向量
+4. 适合竞赛直接粘贴
+
+默认：
+- 1-based
+- 定长数组
+- 支持非方阵乘法
+- 快速幂要求方阵
+- 乘法时跳过 0，稀疏一点时更快
+- 修改 mod、MAXM 即可复用
+
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int mod = 1e9 + 7;
+const int MAXM = 105;
+
+struct Matrix
+{
+    int n, m;
+    int a[MAXM][MAXM];
+
+    Matrix(int _n = 0, int _m = 0)
+    {
+        n = _n;
+        m = _m;
+
+        for (int i = 1; i <= n; i++)
+        {
+            for (int j = 1; j <= m; j++)
+            {
+                a[i][j] = 0;
+            }
+        }
+    }
+
+    Matrix operator * (const Matrix &b) const
+    {
+        Matrix c(n, b.m);
+
+        for (int i = 1; i <= n; i++)
+        {
+            for (int k = 1; k <= m; k++)
+            {
+                if (a[i][k] == 0)
+                {
+                    continue;
+                }
+
+                for (int j = 1; j <= b.m; j++)
+                {
+                    if (b.a[k][j] == 0)
+                    {
+                        continue;
+                    }
+
+                    c.a[i][j] = (c.a[i][j] + a[i][k] * b.a[k][j]) % mod;
+                }
+            }
+        }
+
+        return c;
+    }
+};
+
+Matrix qmi(Matrix a, int b)
+{
+    Matrix res(a.n, a.n);
+
+    for (int i = 1; i <= a.n; i++)
+    {
+        res.a[i][i] = 1;
+    }
+
+    while (b)
+    {
+        if (b & 1)
+        {
+            res = res * a;
+        }
+
+        a = a * a;
+        b >>= 1;
+    }
+
+    return res;
+}
+
+
+====================
+怎么用
+====================
+
+1. 建一个 n * m 矩阵
+
+Matrix a(n, m);
+
+
+2. 赋值
+
+a.a[1][1] = 3;
+a.a[1][2] = 5;
+
+
+3. 矩阵乘法
+
+Matrix c = a * b;
+
+要求：
+a.m == b.n
+
+结果：
+c.n = a.n
+c.m = b.m
+
+
+4. 矩阵快速幂
+
+Matrix res = qmi(a, k);
+
+要求：
+a 必须是方阵。
+
+结果：
+res = a^k
+
+
+5. 转移矩阵乘状态向量
+
+假设状态数为 siz：
+
+Matrix mat(siz, siz);
+Matrix f(siz, 1);
+
+f.a[1][1] = ...;
+f.a[2][1] = ...;
+
+Matrix ans = qmi(mat, k) * f;
+
+ans.a[i][1]
+就是快速跳 k 次后的第 i 个状态。
+
+
+====================
+常见状态设计
+====================
+
+线性递推：
+
+f[n] = c1*f[n-1] + c2*f[n-2] + ... + ck*f[n-k]
+
+可以维护：
+
+[f[n]]
+[f[n-1]]
+[f[n-2]]
+[...]
+[f[n-k+1]]
+
+转移矩阵第一行：
+
+c1 c2 c3 ... ck
+
+下面负责整体平移：
+
+1 0 0 ... 0
+0 1 0 ... 0
+0 0 1 ... 0
+...
+
+
+如果有常数项：
+
+f[n] = ... + C
+
+多加一维：
+
+1
+
+并让：
+
+mat[last][last] = 1
+
+
+如果需要维护前缀和：
+
+S[n] = S[n-1] + f[n]
+
+再多加一维 S。
+
+新的 S 那一行：
+= 新 f 的转移系数
++ 原来的 S
+
+
+====================
+赛场注意
+====================
+
+1. MAXM 要开够：
+   状态数 <= MAXM - 1
+
+2. 如果模数不是 1e9+7：
+   改 mod。
+
+3. 如果不取模：
+   去掉所有 % mod，但要注意溢出。
+
+4. qmi 只能用于方阵。
+
+5. 复杂度：
+   普通矩阵乘法 O(n^3)
+   快速幂 O(n^3 log k)
+
+6. 如果矩阵非常稀疏：
+   当前模板通过跳过 0，可以减少很多常数。
+
+7. 如果维度到 200~300 以上：
+   O(n^3 log k) 可能会比较重，需要考虑进一步优化。
