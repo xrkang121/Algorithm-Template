@@ -1,3 +1,19 @@
+1）对称： C(n,k) = C(n,n-k)
+
+2）范德蒙德： Σ C(a,k) C(b,m-k) = C(a+b,m)
+
+特别地： Σ C(a,k) C(b,k) = C(a+b,a) = C(a+b,b)
+
+3）曲棍球棒（连续组合数求和）： Σ(k=0~m) C(a+k,a) = C(a+m+1,a+1)
+
+区间版本： Σ(k=l~r) C(a+k,a) = C(a+r+1,a+1) - C(a+l,a+1)
+
+4）杨辉三角： C(n,k) = C(n-1,k) + C(n-1,k-1)
+
+5）整行求和： Σ(k=0~n) C(n,k) = 2^n
+
+6）带一个 k： k * C(n,k) = n * C(n-1,k-1)
+
 const int NAXN = 2e5 + 5;
 
 const int mod = 997244353;
