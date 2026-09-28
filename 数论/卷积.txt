@@ -103,6 +103,26 @@ vector<int> conv(vector<int> a, vector<int> b)
         return {};
     }
 
+    if ((int)a.size() * (int)b.size() <= 50000)
+    {
+        vector<int> c(a.size() + b.size() - 1, 0);
+
+        for (int i = 0; i < a.size(); i++)
+        {
+            for (int j = 0; j < b.size(); j++)
+            {
+                c[i + j] += a[i] * b[j] % mod;
+
+                if (c[i + j] >= mod)
+                {
+                    c[i + j] -= mod;
+                }
+            }
+        }
+
+        return c;
+    }
+
     int siz = a.size() + b.size() - 1;
     int n = 1;
 
