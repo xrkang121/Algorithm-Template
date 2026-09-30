@@ -1,0 +1,718 @@
+计算几何三角函数板子
+
+一、用途
+1. 已知起点、距离、方向角，求终点坐标
+2. 已知两点，求方向角
+3. 求两个向量夹角
+4. 点 / 向量旋转
+5. 圆上按角度取点
+6. 极角
+7. 圆弧、扇形、弦长
+8. 计算几何中的方向与旋转
+
+二、基础定义
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define double long double
+
+typedef struct Point
+{
+    double x, y;
+} Point;
+
+三、弧度制
+
+C++ 中 sin / cos / tan / asin / acos / atan / atan2
+默认全部使用弧度制。
+
+PI 不需要单独定义，直接使用：
+
+acosl(-1.0L)
+
+因为：
+
+acos(-1) = π
+
+角度转弧度：
+
+rad = degree * π / 180
+
+代码：
+
+double rad = degree * acosl(-1.0L) / 180.0L;
+
+弧度转角度：
+
+degree = rad * 180 / π
+
+代码：
+
+double degree = rad * 180.0L / acosl(-1.0L);
+
+常见角度：
+
+30°  = π / 6
+45°  = π / 4
+60°  = π / 3
+90°  = π / 2
+180° = π
+360° = 2π
+
+代码中可直接写：
+
+acosl(-1.0L) / 6.0L
+acosl(-1.0L) / 4.0L
+acosl(-1.0L) / 3.0L
+acosl(-1.0L) / 2.0L
+acosl(-1.0L)
+2.0L * acosl(-1.0L)
+
+四、sin / cos / tan
+
+代码：
+
+sinl(angle);
+cosl(angle);
+tanl(angle);
+
+angle 必须是弧度。
+
+公式：
+
+sin(angle) = 对边 / 斜边
+
+cos(angle) = 邻边 / 斜边
+
+tan(angle) = 对边 / 邻边
+
+tan(angle) = sin(angle) / cos(angle)
+
+性质：
+
+sin²(x) + cos²(x) = 1
+
+sin(x + 2π) = sin(x)
+
+cos(x + 2π) = cos(x)
+
+tan(x + π) = tan(x)
+
+sin(-x) = -sin(x)
+
+cos(-x) = cos(x)
+
+tan(-x) = -tan(x)
+
+五、已知点 + 距离 + 方向角，求另一个点
+
+已知：
+
+起点 P(x,y)
+距离 len
+方向角 angle
+
+默认：
+
+从 x 轴正方向开始
+逆时针为正
+angle 为弧度
+
+公式：
+
+x2 = x1 + len * cos(angle)
+
+y2 = y1 + len * sin(angle)
+
+代码：
+
+Point move(Point p, double len, double angle)
+{
+    Point res;
+
+    res.x = p.x + len * cosl(angle);
+    res.y = p.y + len * sinl(angle);
+
+    return res;
+}
+
+使用：
+
+Point A = {1, 2};
+
+double len = 5;
+double angle = acosl(-1.0L) / 3.0L;
+
+Point B = move(A, len, angle);
+
+六、已知两点，求方向角
+
+A -> B
+
+公式：
+
+dx = B.x - A.x
+
+dy = B.y - A.y
+
+angle = atan2(dy, dx)
+
+代码：
+
+double getAngle(Point a, Point b)
+{
+    return atan2l(b.y - a.y, b.x - a.x);
+}
+
+返回范围：
+
+[-π, π]
+
+如果想变成：
+
+[0, 2π)
+
+代码：
+
+double getAngle2(Point a, Point b)
+{
+    double angle = atan2l(b.y - a.y, b.x - a.x);
+
+    if (angle < 0)
+    {
+        angle += 2.0L * acosl(-1.0L);
+    }
+
+    return angle;
+}
+
+性质：
+
+atan2(y,x) 会自动判断象限。
+
+计算几何里求方向角优先使用：
+
+atan2l(dy, dx)
+
+不要使用：
+
+atanl(dy / dx)
+
+原因：
+
+1. dx = 0 时有问题
+2. 无法正确判断象限
+
+七、反三角函数
+
+代码：
+
+asinl(x);
+acosl(x);
+atanl(x);
+atan2l(y, x);
+
+返回值全部是弧度。
+
+范围：
+
+asin(x) ∈ [-π/2, π/2]
+
+acos(x) ∈ [0, π]
+
+atan(x) ∈ (-π/2, π/2)
+
+atan2(y,x) ∈ [-π, π]
+
+八、两个向量夹角
+
+向量：
+
+A=(ax,ay)
+
+B=(bx,by)
+
+点积：
+
+dot = ax * bx + ay * by
+
+向量长度：
+
+|A| = sqrt(ax² + ay²)
+
+|B| = sqrt(bx² + by²)
+
+公式：
+
+cos(theta)
+=
+(A · B) / (|A| * |B|)
+
+theta
+=
+acos((A · B) / (|A| * |B|))
+
+代码：
+
+double getVectorAngle(Point a, Point b)
+{
+    double dot = a.x * b.x + a.y * b.y;
+
+    double la = sqrtl(a.x * a.x + a.y * a.y);
+    double lb = sqrtl(b.x * b.x + b.y * b.y);
+
+    double val = dot / (la * lb);
+
+    val = max(-1.0L, min(1.0L, val));
+
+    return acosl(val);
+}
+
+注意：
+
+acos 的参数必须在：
+
+[-1, 1]
+
+由于浮点误差，理论上的 1 可能变成：
+
+1.000000000000001
+
+所以要写：
+
+val = max(-1.0L, min(1.0L, val));
+
+九、两个向量的有向夹角
+
+向量：
+
+A=(ax,ay)
+
+B=(bx,by)
+
+叉积：
+
+cross = ax * by - ay * bx
+
+点积：
+
+dot = ax * bx + ay * by
+
+公式：
+
+theta = atan2(cross, dot)
+
+代码：
+
+double directedAngle(Point a, Point b)
+{
+    double cr = a.x * b.y - a.y * b.x;
+    double dt = a.x * b.x + a.y * b.y;
+
+    return atan2l(cr, dt);
+}
+
+范围：
+
+[-π, π]
+
+性质：
+
+theta > 0
+A 逆时针转到 B
+
+theta < 0
+A 顺时针转到 B
+
+theta = 0
+同方向
+
+|theta| = π
+反方向
+
+十、绕原点旋转
+
+点 / 向量：
+
+P(x,y)
+
+逆时针旋转 angle。
+
+公式：
+
+x' = x * cos(angle) - y * sin(angle)
+
+y' = x * sin(angle) + y * cos(angle)
+
+代码：
+
+Point rotate(Point p, double angle)
+{
+    Point res;
+
+    res.x = p.x * cosl(angle) - p.y * sinl(angle);
+    res.y = p.x * sinl(angle) + p.y * cosl(angle);
+
+    return res;
+}
+
+顺时针旋转 angle：
+
+rotate(p, -angle)
+
+十一、绕指定点旋转
+
+让 P 绕 O 逆时针旋转 angle。
+
+代码：
+
+Point rotate(Point p, Point o, double angle)
+{
+    p.x -= o.x;
+    p.y -= o.y;
+
+    Point res;
+
+    res.x = p.x * cosl(angle) - p.y * sinl(angle);
+    res.y = p.x * sinl(angle) + p.y * cosl(angle);
+
+    res.x += o.x;
+    res.y += o.y;
+
+    return res;
+}
+
+过程：
+
+P - O
+↓
+绕原点旋转
+↓
++ O
+
+十二、圆上按角度求点
+
+圆心：
+
+O(cx,cy)
+
+半径：
+
+r
+
+角度：
+
+angle
+
+公式：
+
+x = cx + r * cos(angle)
+
+y = cy + r * sin(angle)
+
+代码：
+
+Point pointOnCircle(Point o, double r, double angle)
+{
+    Point p;
+
+    p.x = o.x + r * cosl(angle);
+    p.y = o.y + r * sinl(angle);
+
+    return p;
+}
+
+十三、两点距离
+
+公式：
+
+dis(A,B)
+=
+sqrt((Ax-Bx)² + (Ay-By)²)
+
+代码：
+
+double dis(Point a, Point b)
+{
+    double dx = a.x - b.x;
+    double dy = a.y - b.y;
+
+    return sqrtl(dx * dx + dy * dy);
+}
+
+平方距离：
+
+dist²(A,B)
+=
+(Ax-Bx)² + (Ay-By)²
+
+代码：
+
+double dist2(Point a, Point b)
+{
+    double dx = a.x - b.x;
+    double dy = a.y - b.y;
+
+    return dx * dx + dy * dy;
+}
+
+比较距离时优先比较平方距离，
+最后需要真实距离再开根号。
+
+十四、极角
+
+点：
+
+P(x,y)
+
+相对于原点的极角：
+
+angle = atan2(y,x)
+
+代码：
+
+double polarAngle(Point p)
+{
+    double angle = atan2l(p.y, p.x);
+
+    if (angle < 0)
+    {
+        angle += 2.0L * acosl(-1.0L);
+    }
+
+    return angle;
+}
+
+范围：
+
+[0, 2π)
+
+十五、圆弧长度
+
+半径：
+
+r
+
+圆心角：
+
+theta
+
+theta 必须是弧度。
+
+公式：
+
+L = r * theta
+
+代码：
+
+double arcLength(double r, double theta)
+{
+    return r * theta;
+}
+
+十六、扇形面积
+
+公式：
+
+S = 1/2 * r² * theta
+
+代码：
+
+double sectorArea(double r, double theta)
+{
+    return r * r * theta / 2.0L;
+}
+
+十七、弦长
+
+半径：
+
+r
+
+圆心角：
+
+theta
+
+公式：
+
+len = 2r * sin(theta / 2)
+
+代码：
+
+double chordLength(double r, double theta)
+{
+    return 2.0L * r * sinl(theta / 2.0L);
+}
+
+十八、余弦定理
+
+三角形三边：
+
+a,b,c
+
+c 对应角 C。
+
+公式：
+
+c² = a² + b² - 2ab cos(C)
+
+求角：
+
+cos(C)
+=
+(a² + b² - c²) / (2ab)
+
+C
+=
+acos((a² + b² - c²) / (2ab))
+
+代码：
+
+double getTriangleAngle(double a, double b, double c)
+{
+    double val = (a * a + b * b - c * c) / (2.0L * a * b);
+
+    val = max(-1.0L, min(1.0L, val));
+
+    return acosl(val);
+}
+
+十九、正弦定理
+
+公式：
+
+a / sin(A)
+=
+b / sin(B)
+=
+c / sin(C)
+=
+2R
+
+R 为外接圆半径。
+
+二十、三角形面积
+
+已知两边：
+
+a,b
+
+夹角：
+
+theta
+
+公式：
+
+S = 1/2 * a * b * sin(theta)
+
+代码：
+
+double triangleArea(double a, double b, double theta)
+{
+    return a * b * sinl(theta) / 2.0L;
+}
+
+二十一、常用三角恒等式
+
+sin²(x) + cos²(x) = 1
+
+tan(x) = sin(x) / cos(x)
+
+sin(-x) = -sin(x)
+
+cos(-x) = cos(x)
+
+tan(-x) = -tan(x)
+
+sin(π-x) = sin(x)
+
+cos(π-x) = -cos(x)
+
+sin(π+x) = -sin(x)
+
+cos(π+x) = -cos(x)
+
+sin(2x) = 2sin(x)cos(x)
+
+cos(2x) = cos²(x) - sin²(x)
+
+二十二、最常用写法
+
+1. 角度转弧度
+
+double rad = degree * acosl(-1.0L) / 180.0L;
+
+2. 弧度转角度
+
+double degree = rad * 180.0L / acosl(-1.0L);
+
+3. 点 + 距离 + 角度求点
+
+x2 = x1 + len * cosl(angle);
+
+y2 = y1 + len * sinl(angle);
+
+4. 两点求方向角
+
+double angle = atan2l(y2 - y1, x2 - x1);
+
+5. 两向量夹角
+
+theta = acos(dot / (len1 * len2));
+
+6. 有向夹角
+
+theta = atan2(cross, dot);
+
+7. 点旋转
+
+x' = x cos(theta) - y sin(theta)
+
+y' = x sin(theta) + y cos(theta)
+
+8. 圆上点
+
+x = cx + r cos(theta)
+
+y = cy + r sin(theta)
+
+9. 圆弧
+
+L = r * theta
+
+10. 扇形
+
+S = r² * theta / 2
+
+11. 弦长
+
+len = 2r sin(theta / 2)
+
+二十三、精度
+
+使用 long double 时：
+
+sinl
+cosl
+tanl
+asinl
+acosl
+atanl
+atan2l
+sqrtl
+fabsl
+
+浮点比较：
+
+const double eps = 1e-12;
+
+if (fabsl(a - b) < eps)
+
+判断角度题时先确认题目给的是：
+
+角度
+还是
+弧度
+
+C++ 三角函数默认全部使用弧度。
