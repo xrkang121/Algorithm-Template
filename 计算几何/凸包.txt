@@ -1,0 +1,371 @@
+凸包
+
+一、定义
+凸包：包含所有给定点的最小凸多边形。
+
+二、常见用途
+1. 求点集最外层边界
+2. 求凸包周长
+3. 求凸包面积
+4. 求点集最远点对 / 凸包直径
+5. 旋转卡壳
+6. 最小面积矩形
+7. 最大三角形面积
+8. 凸多边形点内判断
+9. 两个凸多边形位置关系
+10. 凸几何问题预处理
+
+三、重要性质
+1. 凸包顶点按环形顺序排列。
+2. 本板子返回逆时针顺序。
+3. 相邻三个凸包顶点一般满足：
+   cross(A,B,C) > 0
+4. 点集内部点不会成为凸包顶点。
+5. 点集最远点对一定出现在凸包顶点之间。
+6. 求很多几何极值时，可以先求凸包，再只处理凸包上的点。
+7. cross <= 0：
+   共线时会弹出中间点，只保留边两端的最远点。
+8. cross < 0：
+   会保留凸包边界上的共线点。
+9. 所有点共线时，本板子只保留最左端点和最右端点。
+10. 凸包点数记为 m，m <= n。
+11. 求凸包复杂度：
+    排序 O(n log n)
+    扫描 O(n)
+    总复杂度 O(n log n)
+
+四、叉积
+
+cross(A,B,C)
+= (B-A) × (C-A)
+
+cross > 0：C 在有向边 A->B 左侧
+cross < 0：C 在有向边 A->B 右侧
+cross = 0：A、B、C 共线
+
+五、代码
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+typedef struct Point
+{
+    int x, y;
+} Point;
+
+int cross(Point a, Point b, Point c)
+{
+    return (b.x - a.x) * (c.y - a.y)
+         - (b.y - a.y) * (c.x - a.x);
+}
+
+// 返回凸包顶点，逆时针
+// 共线边上只保留最外侧端点
+// 使用：vector<Point> hull = convexHull(arr);
+vector<Point> convexHull(vector<Point> arr)
+{
+    sort(arr.begin(), arr.end(), [](Point a, Point b)
+    {
+        if (a.x != b.x)
+        {
+            return a.x < b.x;
+        }
+
+        return a.y < b.y;
+    });
+
+    arr.erase(unique(arr.begin(), arr.end(), [](Point a, Point b)
+    {
+        return a.x == b.x && a.y == b.y;
+    }), arr.end());
+
+    int n = arr.size();
+
+    if (n <= 2)
+    {
+        return arr;
+    }
+
+    vector<Point> hull;
+
+    for (int i = 0; i < n; i++)
+    {
+        while (hull.size() >= 2 &&
+               cross(hull[hull.size() - 2], hull.back(), arr[i]) <= 0)
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(arr[i]);
+    }
+
+    int siz = hull.size();
+
+    for (int i = n - 2; i >= 0; i--)
+    {
+        while ((int)hull.size() > siz &&
+               cross(hull[hull.size() - 2], hull.back(), arr[i]) <= 0)
+        {
+            hull.pop_back();
+        }
+
+        hull.push_back(arr[i]);
+    }
+
+    hull.pop_back();
+
+    return hull;
+}
+
+六、凸包周长
+
+设凸包顶点为：
+
+P0, P1, ..., P(m-1)
+
+首尾相连：
+
+P(m) = P0
+
+周长：
+
+L = Σ distance(Pi, P(i+1))
+
+其中：
+
+distance(A,B)
+= sqrt((Ax-Bx)^2 + (Ay-By)^2)
+
+代码：
+
+long double dis(Point a, Point b)
+{
+    long double dx = a.x - b.x;
+    long double dy = a.y - b.y;
+
+    return sqrtl(dx * dx + dy * dy);
+}
+
+long double perimeter(vector<Point> hull)
+{
+    int m = hull.size();
+
+    if (m == 1)
+    {
+        return 0;
+    }
+
+    if (m == 2)
+    {
+        return 2.0L * dis(hull[0], hull[1]);
+    }
+
+    long double ans = 0;
+
+    for (int i = 0; i < m; i++)
+    {
+        ans += dis(hull[i], hull[(i + 1) % m]);
+    }
+
+    return ans;
+}
+
+注意：
+如果题目把两个点的凸包看作一条线段，
+有些题周长可能定义为线段长度；
+要按题意判断。
+普通封闭凸包周长写法通常为 2 * distance。
+
+七、凸包面积
+
+多边形面积：
+
+S
+= 1/2 * |Σ (xi * y(i+1) - yi * x(i+1))|
+
+也就是：
+
+S
+= 1/2 * |Σ cross(O, Pi, P(i+1))|
+
+其中 O=(0,0)。
+
+代码：
+
+long double area(vector<Point> hull)
+{
+    int m = hull.size();
+
+    int sum = 0;
+
+    for (int i = 0; i < m; i++)
+    {
+        Point a = hull[i];
+        Point b = hull[(i + 1) % m];
+
+        sum += a.x * b.y - a.y * b.x;
+    }
+
+    return fabsl((long double)sum) / 2.0L;
+}
+
+如果只需要面积的两倍：
+
+int area2(vector<Point> hull)
+{
+    int m = hull.size();
+
+    int sum = 0;
+
+    for (int i = 0; i < m; i++)
+    {
+        Point a = hull[i];
+        Point b = hull[(i + 1) % m];
+
+        sum += a.x * b.y - a.y * b.x;
+    }
+
+    return llabs(sum);
+}
+
+常用：
+面积比较时尽量直接比较 area2，
+避免浮点数。
+
+八、凸包直径 / 最远点对
+
+性质：
+整个点集的最远点对一定在凸包顶点上。
+
+暴力：
+凸包点数为 m 时，
+枚举所有凸包点对：
+
+O(m^2)
+
+更优：
+凸包 + 旋转卡壳：
+
+O(m)
+
+平方距离：
+
+dist2(A,B)
+= (Ax-Bx)^2 + (Ay-By)^2
+
+代码：
+
+int dist2(Point a, Point b)
+{
+    int dx = a.x - b.x;
+    int dy = a.y - b.y;
+
+    return dx * dx + dy * dy;
+}
+
+比较距离时优先用平方距离，
+最后需要真实距离再开根号。
+
+九、方向和共线点
+
+当前：
+
+cross(...) <= 0
+
+含义：
+右转或者共线都弹出。
+
+效果：
+凸包边上的中间共线点不会保留。
+
+例如：
+
+A --- B --- C
+
+最终只保留：
+
+A、C
+
+如果题目要求保留所有边界点：
+
+把：
+
+cross(...) <= 0
+
+改成：
+
+cross(...) < 0
+
+但所有点共线时要特别处理。
+
+十、上下凸包
+
+Monotone Chain：
+
+1. 按 x 从小到大排序，x 相同按 y 排序。
+2. 从左到右建立下凸包。
+3. 从右到左建立上凸包。
+4. 拼起来得到完整凸包。
+5. 起点会重复一次，所以最后 hull.pop_back()。
+
+十一、常见题型
+
+1. 最外围栅栏长度
+   -> 凸包周长
+
+2. 最外围面积
+   -> 凸包面积
+
+3. 最远两个点
+   -> 凸包 + 旋转卡壳
+
+4. 最大三角形面积
+   -> 凸包 + 旋转卡壳 / 枚举
+
+5. 最小矩形
+   -> 凸包 + 旋转卡壳
+
+6. 判断一个点是否在凸多边形内部
+   -> 凸包点序 + 叉积 / 二分
+
+7. 两个凸包是否相交
+   -> 线段相交 / SAT / Minkowski
+
+十二、精度和数据范围
+
+1. 坐标为整数时，叉积优先使用整数。
+2. cross 中会出现坐标乘法：
+   如果坐标到 1e9，
+   乘积可能到 1e18。
+3. #define int long long 一般可以处理 1e9 级坐标。
+4. 如果坐标可能更大，需要 __int128。
+5. 周长需要 sqrt，使用 long double。
+6. 面积能用整数的两倍面积时尽量不用浮点数。
+
+十三、最常用结论
+
+cross(A,B,C) > 0
+左转
+
+cross(A,B,C) < 0
+右转
+
+cross(A,B,C) = 0
+共线
+
+凸包：
+排序 + 维护左转
+
+周长：
+Σ distance(Pi,P(i+1))
+
+面积：
+1/2 * |Σ cross(O,Pi,P(i+1))|
+
+最远点对：
+一定在凸包顶点之间
+
+复杂度：
+O(n log n)
