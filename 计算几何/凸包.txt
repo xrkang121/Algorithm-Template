@@ -1,4 +1,4 @@
-【基础结构】
+【1. 基础】
 
 typedef struct Point
 {
@@ -11,12 +11,10 @@ int cross(Point a, Point b, Point c)
          - (b.y - a.y) * (c.x - a.x);
 }
 
-long double dis(Point a, Point b)
+int dot(Point a, Point b, Point c)
 {
-    long double dx = a.x - b.x;
-    long double dy = a.y - b.y;
-
-    return sqrtl(dx * dx + dy * dy);
+    return (b.x - a.x) * (c.x - a.x)
+         + (b.y - a.y) * (c.y - a.y);
 }
 
 int dist2(Point a, Point b)
@@ -27,18 +25,20 @@ int dist2(Point a, Point b)
     return dx * dx + dy * dy;
 }
 
-
-【叉积】
+long double dis(Point a, Point b)
+{
+    return sqrtl((long double)dist2(a, b));
+}
 
 cross(A,B,C) > 0：左转
 cross(A,B,C) < 0：右转
 cross(A,B,C) = 0：共线
 
 
-【完整凸包】
+【2. 完整凸包 Andrew】
 
 // 返回逆时针凸包
-// 共线边只保留最外侧端点
+// 边界共线中间点不保留
 vector<Point> convexHull(vector<Point> arr)
 {
     sort(arr.begin(), arr.end(), [](Point a, Point b)
@@ -94,12 +94,14 @@ vector<Point> convexHull(vector<Point> arr)
     return hull;
 }
 
+复杂度：
+O(n log n)
 
-【下凸包】
+
+【3. 下凸包】
 
 // x 从小到大
 // 保留左转
-// cross <= 0 弹
 vector<Point> lowerHull(vector<Point> arr)
 {
     sort(arr.begin(), arr.end(), [](Point a, Point b)
@@ -129,11 +131,10 @@ vector<Point> lowerHull(vector<Point> arr)
 }
 
 
-【上凸包】
+【4. 上凸包】
 
 // x 从小到大
 // 保留右转
-// cross >= 0 弹
 vector<Point> upperHull(vector<Point> arr)
 {
     sort(arr.begin(), arr.end(), [](Point a, Point b)
@@ -163,25 +164,39 @@ vector<Point> upperHull(vector<Point> arr)
 }
 
 
-【是否保留共线点】
+【5. 共线点】
 
-完整凸包 / 下凸包：
-<= 0  -> 不保留共线中间点
-< 0   -> 保留共线点
+下凸包 / 完整凸包：
+cross <= 0：不保留边界共线中间点
+cross < 0 ：保留边界共线点
 
 上凸包：
->= 0  -> 不保留共线中间点
-> 0   -> 保留共线点
+cross >= 0：不保留边界共线中间点
+cross > 0 ：保留边界共线点
+
+全部共线：
+通常只保留两端点
 
 
-【周长】
+【6. 凸包周长】
 
 L = Σ dis(P[i], P[(i+1)%m])
 
 long double perimeter(vector<Point> hull)
 {
-    long double ans = 0;
     int m = hull.size();
+
+    if (m == 1)
+    {
+        return 0;
+    }
+
+    if (m == 2)
+    {
+        return 2.0L * dis(hull[0], hull[1]);
+    }
+
+    long double ans = 0;
 
     for (int i = 0; i < m; i++)
     {
@@ -192,7 +207,7 @@ long double perimeter(vector<Point> hull)
 }
 
 
-【面积】
+【7. 凸包面积】
 
 2S = |Σ(x[i]*y[i+1] - y[i]*x[i+1])|
 
@@ -212,19 +227,185 @@ int area2(vector<Point> hull)
     return llabs(ans);
 }
 
+真实面积：
 
-【重要性质】
-
-1. 最远点对一定在凸包点上
-2. 最大/最小线性函数一定在凸包上
-3. 给定方向 v：
-   max(P·v)、min(P·v) 一定在凸包边界
-4. 很多极值题：
-   原点集 -> 求凸包 -> 只处理凸包点
-5. 凸包复杂度 O(n log n)
+S = area2 / 2
 
 
-【直线转点】
+【8. 凸包直径 / 最远点对】
+
+性质：
+点集最远点对一定在凸包顶点之间。
+
+做法：
+凸包 + 旋转卡壳
+
+// 返回最大距离平方
+int diameter2(vector<Point> hull)
+{
+    int n = hull.size();
+
+    if (n <= 1)
+    {
+        return 0;
+    }
+
+    if (n == 2)
+    {
+        return dist2(hull[0], hull[1]);
+    }
+
+    int ans = 0;
+    int j = 1;
+
+    for (int i = 0; i < n; i++)
+    {
+        int ni = (i + 1) % n;
+
+        while (llabs(cross(hull[i], hull[ni], hull[(j + 1) % n])) >
+               llabs(cross(hull[i], hull[ni], hull[j])))
+        {
+            j = (j + 1) % n;
+        }
+
+        ans = max(ans, dist2(hull[i], hull[j]));
+        ans = max(ans, dist2(hull[ni], hull[j]));
+    }
+
+    return ans;
+}
+
+复杂度：
+O(m)
+
+真实直径：
+sqrtl(diameter2(hull))
+
+
+【9. 旋转卡壳核心】
+
+固定凸包边：
+
+Pi -> P(i+1)
+
+对踵点 j：
+使
+
+|cross(Pi,P(i+1),Pj)|
+
+最大。
+
+移动条件：
+
+while (
+    |cross(edge, P(j+1))|
+    >
+    |cross(edge, Pj)|
+)
+    j++;
+
+常见用途：
+
+1. 凸包直径
+2. 最远点对
+3. 最小宽度
+4. 最小面积外接矩形
+5. 最大面积三角形
+
+
+【10. 最大三角形面积】
+
+凸包上三点最大面积：
+
+2S = |cross(A,B,C)|
+
+常用：
+凸包 + 旋转卡壳 / 双指针
+
+结论：
+最大面积三角形顶点一定可以取在凸包顶点上。
+
+
+【11. 最小宽度】
+
+固定一条凸包边：
+
+Pi -> P(i+1)
+
+找离该直线最远点 Pj。
+
+高度：
+
+h
+=
+|cross(Pi,P(i+1),Pj)|
+/
+|PiP(i+1)|
+
+最小宽度：
+
+min(h)
+
+做法：
+凸包 + 旋转卡壳
+
+
+【12. 最小面积外接矩形】
+
+凸包 + 旋转卡壳
+
+对每条凸包边作为矩形一边：
+
+1. 找最远点：确定高度
+2. 找该边方向投影最小点
+3. 找该边方向投影最大点
+
+面积：
+
+width * height
+
+结论：
+最小面积外接矩形至少有一条边与凸包某条边平行。
+
+
+【13. 点积极值性质】
+
+给定方向向量 v：
+
+max(P·v)
+min(P·v)
+
+一定在凸包边界上。
+
+用途：
+
+1. 最大 / 最小投影
+2. 某方向最远点
+3. 线性函数极值
+4. 上下包络
+5. 旋转卡壳
+6. 支持函数
+
+
+【14. 线性函数转凸包】
+
+给点：
+
+P=(x,y)
+
+求：
+
+max(a*x+b*y)
+
+等价于：
+
+max(P·(a,b))
+
+所以：
+极值只需要看凸包。
+
+
+【15. 直线转点：点线对偶】
 
 直线：
 
@@ -234,53 +415,69 @@ y = kx + b
 
 P = (k,b)
 
-固定 x=t：
+固定原坐标：
+
+x=t
+
+则：
 
 y = kt+b
   = (k,b)·(t,1)
 
-结论：
+所以：
 
-求某条直线能否成为最高线
-<=> 求点 (k,b) 是否可能使点积最大
+某条直线能成为最高线
+<=> 对应点能使点积最大
 <=> 看上凸包
 
-求某条直线能否成为最低线
+某条直线能成为最低线
 <=> 看下凸包
 
 
-【上包络 / 下包络】
+【16. 直线上包络】
 
-上包络：
+y = kx+b
 
-相同 k：
+转换：
+
+(k,b)
+
+同 k：
 只保留最大 b
 
 然后：
-求 (k,b) 的上凸包
+求上凸包
 
 
-下包络：
+【17. 直线下包络】
 
-相同 k：
+y = kx+b
+
+转换：
+
+(k,b)
+
+同 k：
 只保留最小 b
 
 然后：
-求 (k,b) 的下凸包
+求下凸包
 
 
-【两直线交点与点间斜率】
+【18. 两直线交点与点间斜率】
 
-两直线：
+两条直线：
 
-y = k1*x + b1
-y = k2*x + b2
+y=k1*x+b1
+y=k2*x+b2
 
 交点横坐标：
 
-x = (b2-b1)/(k1-k2)
+x
+=
+(b2-b1)/(k1-k2)
 
-转换点：
+转成点：
 
 P1=(k1,b1)
 P2=(k2,b2)
@@ -293,34 +490,245 @@ slope(P1,P2)
 
 所以：
 
-交点横坐标
+原直线交点横坐标
 =
 -slope(P1,P2)
 
 
-【常见凸包转换】
+【19. DP 斜率优化】
 
-1. 直线上包络
-   y=kx+b -> 点(k,b) -> 上凸包
+若：
 
-2. 直线下包络
-   y=kx+b -> 点(k,b) -> 下凸包
+dp[i]
+=
+min/max
+{
+m[j]*x[i]+b[j]
+}
 
-3. 最大化：
-   a*x+b*y
-   = P·(a,b)
-   -> 极值只看凸包
+把每个 j 看作直线：
 
-4. DP 斜率优化：
-   dp[i] = min/max(m[j]*x[i]+b[j])
-   -> 维护直线包络
-   -> 本质凸包
+y=m[j]*x+b[j]
 
-5. 最远点对
+查询：
+x=x[i] 时的最小/最大 y
+
+本质：
+维护直线下包络 / 上包络
+= Convex Hull Trick
+
+
+【20. 凸多边形点内判断】
+
+若 hull 为逆时针。
+
+O(m)：
+
+所有边满足：
+
+cross(hull[i], hull[i+1], P) >= 0
+
+则点在凸多边形内或边界。
+
+严格内部：
+
+全部 > 0
+
+大数据：
+可用扇形二分做到 O(log m)
+
+
+【21. 凸多边形内点 O(log n) 判断核心】
+
+设 P0 = hull[0]。
+
+先判断 P 是否位于：
+
+P0->P1
+与
+P0->P(n-1)
+
+夹出的扇形内。
+
+然后二分找到：
+
+P 位于三角形
+
+P0, Pi, P(i+1)
+
+中。
+
+最后用叉积判断。
+
+
+【22. 凸包与直线 / 半平面】
+
+凸包本质是若干半平面的交。
+
+逆时针凸多边形：
+
+每条有向边 Pi -> P(i+1)
+
+多边形内部在该边左侧：
+
+cross(Pi,P(i+1),P) >= 0
+
+
+【23. Minkowski Sum】
+
+两个凸多边形 A、B：
+
+A+B
+=
+{a+b | a∈A,b∈B}
+
+性质：
+
+两个凸多边形 Minkowski 和仍为凸多边形。
+
+做法：
+
+1. 找各自最低/最左起点
+2. 边向量按极角归并
+3. 前缀累加
+
+用途：
+
+1. 两凸多边形距离
+2. 碰撞判断
+3. 向量和可达区域
+
+
+【24. 两凸包是否相交】
+
+常用：
+
+1. 枚举边线段相交 O(nm)
+2. 点在凸多边形内
+3. SAT 分离轴
+4. Minkowski Difference
+
+
+【25. 凸包与圆角图形】
+
+若图形等于：
+
+凸多边形 ⊕ 半径 r 的圆
+
+则：
+
+周长
+=
+凸多边形周长 + 2πr
+
+面积
+=
+原凸多边形面积
++ r * 原凸多边形周长
++ πr²
+
+
+【26. 支持函数】
+
+凸集 C 对方向 v：
+
+h_C(v)
+=
+max(P·v)
+
+P∈C
+
+极值一定在凸包边界。
+
+Minkowski：
+
+h_(A+B)(v)
+=
+h_A(v)+h_B(v)
+
+
+【27. 常见题型转换】
+
+1. 最远点对
    -> 凸包 + 旋转卡壳
 
-6. 最大三角形面积
-   -> 先求凸包
+2. 最大三角形面积
+   -> 凸包 + 卡壳
 
-7. 最小面积矩形
-   -> 凸包 + 旋转卡壳
+3. 最小宽度
+   -> 凸包 + 卡壳
+
+4. 最小面积矩形
+   -> 凸包 + 卡壳
+
+5. 最大/最小线性函数
+   -> 凸包上求点积极值
+
+6. 直线上包络
+   -> (k,b) + 上凸包
+
+7. 直线下包络
+   -> (k,b) + 下凸包
+
+8. DP：
+   m*x+b 极值
+   -> 斜率优化 / CHT
+
+9. 圆角矩形整体凸包
+   -> 圆角圆心凸包 + 2πr
+
+10. 多个凸集相加
+    -> Minkowski Sum
+
+
+【28. 记忆】
+
+完整凸包：
+左->右一遍
+右->左一遍
+
+下凸包：
+保留左转
+cross > 0
+
+上凸包：
+保留右转
+cross < 0
+
+最远点对：
+凸包 + 旋转卡壳
+
+点积极值：
+一定在凸包
+
+直线：
+y=kx+b
+<-> 点(k,b)
+
+上包络：
+上凸包
+
+下包络：
+下凸包
+
+面积：
+鞋带公式
+
+周长：
+相邻点距离和
+
+
+【29. 数据范围】
+
+坐标到 1e9：
+
+叉积可能到 1e18。
+
+long long 接近极限。
+
+更大：
+__int128
+
+浮点凸包：
+使用 eps，
+不要直接 ==。
