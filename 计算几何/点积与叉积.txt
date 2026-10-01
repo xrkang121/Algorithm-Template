@@ -1,0 +1,952 @@
+点积与叉积（计算几何赛场板子）
+
+【1. 基础结构】
+
+typedef struct Point
+{
+    long double x, y;
+} Point;
+
+long double dot(Point a, Point b)
+{
+    return a.x * b.x + a.y * b.y;
+}
+
+long double cross(Point a, Point b)
+{
+    return a.x * b.y - a.y * b.x;
+}
+
+Point operator-(Point a, Point b)
+{
+    return {a.x - b.x, a.y - b.y};
+}
+
+long double dot(Point a, Point b, Point c)
+{
+    return dot(b - a, c - a);
+}
+
+long double cross(Point a, Point b, Point c)
+{
+    return cross(b - a, c - a);
+}
+
+long double len2(Point a)
+{
+    return dot(a, a);
+}
+
+long double len(Point a)
+{
+    return sqrtl(len2(a));
+}
+
+
+【2. 点积公式】
+
+A=(x1,y1)
+B=(x2,y2)
+
+A·B
+=
+x1*x2+y1*y2
+
+A·B
+=
+|A||B|cos(theta)
+
+所以：
+
+cos(theta)
+=
+(A·B)/(|A||B|)
+
+
+【3. 点积判断夹角】
+
+dot(A,B) > 0
+夹角 < 90°
+
+dot(A,B) = 0
+垂直
+
+dot(A,B) < 0
+夹角 > 90°
+
+
+【4. 两向量夹角】
+
+theta
+=
+acos(
+    dot(A,B)
+    /
+    (|A||B|)
+)
+
+代码：
+
+long double angle(Point a, Point b)
+{
+    long double val = dot(a, b) / (len(a) * len(b));
+
+    val = max(-1.0L, min(1.0L, val));
+
+    return acosl(val);
+}
+
+
+【5. 点在方向上的投影】
+
+点 / 向量 P
+方向向量 d
+
+投影值：
+
+P·d
+
+若 d 是单位向量：
+
+投影长度
+=
+P·d
+
+若 d 不是单位向量：
+
+真实投影长度
+=
+(P·d)/|d|
+
+只比较投影大小时：
+
+直接比较 P·d
+
+
+【6. 一堆点在某方向上的跨度】
+
+方向：
+
+d
+
+跨度：
+
+max(P·d) - min(P·d)
+
+若 d 未单位化：
+
+真实跨度：
+
+(max(P·d)-min(P·d))/|d|
+
+用途：
+
+1. 最小外接矩形
+2. 最大/最小投影
+3. 支持函数
+4. 旋转卡壳
+
+
+【7. 垂直方向】
+
+若：
+
+d=(dx,dy)
+
+则一个垂直方向：
+
+n=(-dy,dx)
+
+也可以：
+
+n=(dy,-dx)
+
+点在垂直方向的投影：
+
+P·n
+
+
+【8. 点到直线的投影】
+
+直线经过 A、B。
+
+方向：
+
+d=B-A
+
+点 P 投影到直线 AB。
+
+参数：
+
+t
+=
+(P-A)·(B-A)
+/ |B-A|²
+
+投影点：
+
+Q
+=
+A+t(B-A)
+
+代码：
+
+Point projection(Point a, Point b, Point p)
+{
+    Point d = b - a;
+
+    long double t = dot(p - a, d) / dot(d, d);
+
+    return {
+        a.x + t * d.x,
+        a.y + t * d.y
+    };
+}
+
+
+【9. 点到直线距离】
+
+直线 AB
+点 P
+
+距离：
+
+distance
+=
+|cross(B-A,P-A)|
+/
+|B-A|
+
+代码：
+
+long double pointLineDistance(Point a, Point b, Point p)
+{
+    return fabsl(cross(a, b, p)) / len(b - a);
+}
+
+
+【10. 点到线段距离】
+
+先算：
+
+t
+=
+(P-A)·(B-A)
+/ |B-A|²
+
+若：
+
+t < 0
+
+最近点是 A
+
+若：
+
+t > 1
+
+最近点是 B
+
+否则：
+
+最近点是投影点
+
+代码：
+
+long double pointSegmentDistance(Point a, Point b, Point p)
+{
+    Point d = b - a;
+
+    long double t = dot(p - a, d) / dot(d, d);
+
+    if (t < 0)
+    {
+        return len(p - a);
+    }
+
+    if (t > 1)
+    {
+        return len(p - b);
+    }
+
+    Point q = {
+        a.x + t * d.x,
+        a.y + t * d.y
+    };
+
+    return len(p - q);
+}
+
+
+【11. 判断点在线段上】
+
+P 在线段 AB 上：
+
+cross(A,B,P)=0
+
+并且：
+
+(P-A)·(P-B) <= 0
+
+代码：
+
+bool onSegment(Point a, Point b, Point p)
+{
+    if (fabsl(cross(a, b, p)) > 1e-12)
+    {
+        return false;
+    }
+
+    return dot(p - a, p - b) <= 0;
+}
+
+
+【12. 叉积公式】
+
+A=(x1,y1)
+B=(x2,y2)
+
+A×B
+=
+x1*y2-y1*x2
+
+A×B
+=
+|A||B|sin(theta)
+
+
+【13. 叉积判断方向】
+
+cross(A,B,C)
+=
+(B-A)×(C-A)
+
+cross(A,B,C) > 0
+C 在有向边 A->B 左侧
+
+cross(A,B,C) < 0
+C 在有向边 A->B 右侧
+
+cross(A,B,C) = 0
+A、B、C 共线
+
+
+【14. 三角形面积】
+
+三角形 ABC：
+
+2S
+=
+|cross(B-A,C-A)|
+
+所以：
+
+S
+=
+|cross(A,B,C)|/2
+
+
+【15. 平行四边形面积】
+
+向量 A、B：
+
+面积：
+
+S
+=
+|A×B|
+
+
+【16. 点到直线距离】
+
+同上：
+
+distance
+=
+|cross(B-A,P-A)|
+/
+|B-A|
+
+记忆：
+
+叉积 = 底 × 高
+
+所以：
+
+高 = 叉积 / 底
+
+
+【17. 两直线平行】
+
+方向向量：
+
+d1
+d2
+
+若：
+
+cross(d1,d2)=0
+
+则平行。
+
+
+【18. 两直线垂直】
+
+方向向量：
+
+d1
+d2
+
+若：
+
+dot(d1,d2)=0
+
+则垂直。
+
+
+【19. 线段相交】
+
+线段 AB
+线段 CD
+
+严格相交：
+
+cross(A,B,C)
+和
+cross(A,B,D)
+
+异号
+
+且：
+
+cross(C,D,A)
+和
+cross(C,D,B)
+
+异号
+
+即：
+
+cross(A,B,C) * cross(A,B,D) < 0
+
+并且：
+
+cross(C,D,A) * cross(C,D,B) < 0
+
+非严格相交需要额外处理共线 + 在线段上。
+
+
+【20. 两直线交点】
+
+直线：
+
+P + t*r
+Q + s*v
+
+其中：
+
+r = B-A
+v = D-C
+
+t
+=
+cross(Q-P,v)
+/
+cross(r,v)
+
+交点：
+
+P+t*r
+
+代码：
+
+Point lineIntersection(Point p, Point r, Point q, Point v)
+{
+    long double t = cross(q - p, v) / cross(r, v);
+
+    return {
+        p.x + t * r.x,
+        p.y + t * r.y
+    };
+}
+
+使用时注意：
+
+cross(r,v)=0
+说明平行或重合。
+
+
+【21. 多边形面积】
+
+顶点：
+
+P0,P1,...,P(n-1)
+
+2S
+=
+|Σ cross(Pi,P(i+1))|
+
+代码：
+
+long double polygonArea2(vector<Point> arr)
+{
+    long double ans = 0;
+    int n = arr.size();
+
+    for (int i = 0; i < n; i++)
+    {
+        ans += cross(arr[i], arr[(i + 1) % n]);
+    }
+
+    return fabsl(ans);
+}
+
+
+【22. 判断多边形方向】
+
+有向面积：
+
+sum
+=
+Σ cross(Pi,P(i+1))
+
+sum > 0
+逆时针
+
+sum < 0
+顺时针
+
+
+【23. 凸包核心】
+
+按 x 排序。
+
+下凸包：
+
+保留左转
+
+cross > 0 保留
+cross <= 0 弹
+
+上凸包：
+
+保留右转
+
+cross < 0 保留
+cross >= 0 弹
+
+
+【24. 凸包直径旋转卡壳】
+
+固定边：
+
+A->B
+
+找最远点 P。
+
+由于：
+
+点到直线距离
+=
+|cross(A,B,P)| / |AB|
+
+对于固定 AB：
+
+只需要最大化：
+
+|cross(A,B,P)|
+
+所以旋转卡壳写：
+
+while (
+    abs(cross(A,B,nextP))
+    >
+    abs(cross(A,B,P))
+)
+{
+    P = nextP;
+}
+
+
+【25. 最大三角形面积】
+
+三点：
+
+A,B,C
+
+2S：
+
+|cross(A,B,C)|
+
+所以最大面积三角形：
+
+最大化叉积绝对值。
+
+
+【26. 最小宽度】
+
+固定凸包边：
+
+A->B
+
+找到最远点 P：
+
+height
+=
+|cross(A,B,P)| / |AB|
+
+所有边取：
+
+min(height)
+
+
+【27. 最小面积外接矩形】
+
+固定凸包边方向：
+
+d=B-A
+
+垂直方向：
+
+n=(-d.y,d.x)
+
+矩形长度：
+
+(max(P·d)-min(P·d))/|d|
+
+矩形高度：
+
+(max(P·n)-min(P·n))/|d|
+
+面积：
+
+(
+max(P·d)-min(P·d)
+)
+*
+(
+max(P·n)-min(P·n)
+)
+/
+|d|²
+
+可直接用：
+
+area
+=
+(deltaDotD * deltaDotN)
+/
+len2(d)
+
+
+【28. 最大 / 最小线性函数】
+
+点：
+
+P=(x,y)
+
+函数：
+
+a*x+b*y
+
+等于：
+
+P·(a,b)
+
+所以：
+
+max(a*x+b*y)
+
+就是：
+
+max(P·v)
+
+其中：
+
+v=(a,b)
+
+结论：
+
+最大值 / 最小值一定在凸包边界。
+
+
+【29. 支持函数】
+
+方向：
+
+v
+
+凸包支持函数：
+
+h(v)
+=
+max(P·v)
+
+用途：
+
+1. 凸包极值
+2. Minkowski Sum
+3. SAT
+4. 旋转卡壳
+5. 最大投影
+
+
+【30. 直线转点】
+
+直线：
+
+y=kx+b
+
+转为：
+
+P=(k,b)
+
+固定：
+
+x=t
+
+则：
+
+y
+=
+kt+b
+=
+(k,b)·(t,1)
+
+所以：
+
+直线最高
+=
+点积最大
+
+上包络
+=
+(k,b) 点集上凸包
+
+下包络
+=
+(k,b) 点集下凸包
+
+
+【31. 极角 / 有向夹角】
+
+两个向量：
+
+A
+B
+
+有向夹角：
+
+theta
+=
+atan2(
+    cross(A,B),
+    dot(A,B)
+)
+
+范围：
+
+[-π,π]
+
+代码：
+
+long double directedAngle(Point a, Point b)
+{
+    return atan2l(cross(a, b), dot(a, b));
+}
+
+性质：
+
+theta > 0
+A 逆时针转到 B
+
+theta < 0
+A 顺时针转到 B
+
+
+【32. 两向量同向 / 反向】
+
+共线：
+
+cross(A,B)=0
+
+同向：
+
+cross(A,B)=0
+且
+dot(A,B)>0
+
+反向：
+
+cross(A,B)=0
+且
+dot(A,B)<0
+
+
+【33. 判断锐角 / 钝角】
+
+三点 A-B-C
+
+看：
+
+(B-A)·(C-B)
+
+或者指定顶点 B：
+
+(A-B)·(C-B)
+
+>0：
+角 ABC 锐角
+
+=0：
+直角
+
+<0：
+钝角
+
+
+【34. 线段最近点】
+
+点 P
+线段 AB
+
+t
+=
+(P-A)·(B-A)
+/ |B-A|²
+
+t<0：
+最近点 A
+
+t>1：
+最近点 B
+
+0<=t<=1：
+最近点为垂足
+
+
+【35. SAT 分离轴】
+
+凸多边形判断分离：
+
+对每条边方向 d，
+
+取法向量：
+
+n=(-d.y,d.x)
+
+分别求两个多边形在 n 上投影区间：
+
+[min(P·n), max(P·n)]
+
+若存在某个方向：
+
+两个区间不相交
+
+则两个凸多边形不相交。
+
+
+【36. 常见公式速记】
+
+点积：
+
+A·B
+=
+|A||B|cos(theta)
+
+叉积：
+
+A×B
+=
+|A||B|sin(theta)
+
+夹角：
+
+theta
+=
+acos(
+dot(A,B)/(|A||B|)
+)
+
+有向夹角：
+
+theta
+=
+atan2(cross(A,B),dot(A,B))
+
+投影：
+
+proj
+=
+A·d / |d|
+
+点到直线：
+
+dist
+=
+|cross(B-A,P-A)| / |B-A|
+
+三角形面积：
+
+2S
+=
+|cross(A,B,C)|
+
+点在线段：
+
+cross(A,B,P)=0
+且
+(P-A)·(P-B)<=0
+
+平行：
+
+cross(d1,d2)=0
+
+垂直：
+
+dot(d1,d2)=0
+
+方向投影跨度：
+
+(max(P·d)-min(P·d))/|d|
+
+线性函数：
+
+a*x+b*y
+=
+P·(a,b)
+
+
+【37. 最值得条件反射的转换】
+
+看到“角度”
+-> 点积 / atan2(cross,dot)
+
+看到“左右 / 转向 / 共线”
+-> 叉积
+
+看到“面积”
+-> 叉积
+
+看到“点到直线距离”
+-> 叉积 / 边长
+
+看到“投影”
+-> 点积
+
+看到“某方向最大最小”
+-> 点积
+
+看到“外接矩形长度宽度”
+-> 两个垂直方向投影
+
+看到“最远点离某条边”
+-> 最大化叉积
+
+看到“线性函数 ax+by”
+-> 点积
+
+看到“直线 y=kx+b 的最高/最低”
+-> 点 (k,b) + 点积极值 + 凸包
+
+看到“垂足 / 最近点”
+-> 点积求参数 t
