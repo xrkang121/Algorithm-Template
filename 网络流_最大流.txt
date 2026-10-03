@@ -1,0 +1,351 @@
+网络流：最大流（Dinic）
+
+一、什么时候用
+
+1. 运输：每条通道有容量，求从源点 S 到汇点 T 最多能送多少。
+2. 匹配：左边对象可以选择右边对象，每个对象有使用次数限制。
+3. 分配：人员、任务、物品、位置等资源之间有允许关系和数量限制。
+4. 多层资源：一次完整选择需要同时使用几类资源。
+5. 不相交路径：限制每条边或每个点最多经过几次。
+6. 最小割：求切断 S 到 T 的所有路径的最小容量代价；最大流值等于最小割值。
+
+判断重点：
+每一单位流量代表什么？一人、一件物品、一次选择，还是一条路径？
+容量表示这条连接最多能通过多少单位。
+中间点满足流入量 = 流出量；源点提供流量，汇点接收流量。
+容量是整数时，这份算法得到整数流，适合构造离散分配方案。
+若还要在最大数量中优化费用，需要费用流，本板子不处理费用。
+
+二、基础板子：只返回最大流值
+
+下面是完整可运行代码。
+main 中输入格式只是普通有向最大流示例，做题时替换 main 的建图部分。
+保留你的 Edge、g、dep、cur 和 bfs/dfs/dinic 写法。
+
+【基础代码开始】
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = 1000000000000000000LL;
+
+typedef struct Edge
+{
+    int to;
+    int cap; // 剩余容量，跑最大流后会改变，不再是初始容量
+    int rev; // 配对的反向边在 g[to] 中的下标
+} Edge;
+
+vector<vector<Edge>> g;
+vector<int> dep;
+vector<int> cur;
+
+// n 是图中最大的点编号，允许使用 0 到 n
+// 每组测试在建边之前调用，清空旧图并重新分配数组
+void init(int n)
+{
+    g.clear();
+    g.resize(n + 1);
+    dep.resize(n + 1);
+    cur.resize(n + 1);
+}
+
+// 添加一条有向原边 u -> v，初始容量 cap
+// 自动生成配对反向边，不需要手动再加容量 0 的边
+// 重边、方向相反的原边都可以分别调用 add_edge
+void add_edge(int u, int v, int cap)
+{
+    int x = g[u].size();
+    int y = g[v].size();
+
+    // 自环时两条边都放在同一个 vector，正向边的反向下标要加 1
+    if (u == v)
+    {
+        y++;
+    }
+
+    Edge a = {v, cap, y};
+    Edge b = {u, 0, x};
+
+    g[u].push_back(a);
+    g[v].push_back(b);
+}
+
+int bfs(int s, int t)
+{
+    // 在剩余容量大于 0 的边上 BFS，建立分层图
+    fill(dep.begin(), dep.end(), -1);
+
+    queue<int> q;
+    q.push(s);
+    dep[s] = 0;
+
+    while (!q.empty())
+    {
+        int u = q.front();
+        q.pop();
+
+        for (Edge e : g[u])
+        {
+            if (e.cap > 0 && dep[e.to] == -1)
+            {
+                dep[e.to] = dep[u] + 1;
+                q.push(e.to);
+            }
+        }
+    }
+
+    return dep[t] != -1;
+}
+
+int dfs(int u, int t, int flow)
+{
+    if (u == t)
+    {
+        return flow;
+    }
+
+    // 当前弧：当前分层图中，从上次扫描的位置继续找
+    for (int &i = cur[u]; i < (int)g[u].size(); i++)
+    {
+        Edge &e = g[u][i];
+
+        if (e.cap > 0 && dep[e.to] == dep[u] + 1)
+        {
+            int val = dfs(e.to, t, min(flow, e.cap));
+
+            if (val > 0)
+            {
+                e.cap -= val;
+                // 反向边允许之后撤销、调整之前的选择
+                g[e.to][e.rev].cap += val;
+                return val;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int dinic(int s, int t)
+{
+    int ans = 0;
+
+    while (bfs(s, t))
+    {
+        fill(cur.begin(), cur.end(), 0);
+
+        while (1)
+        {
+            int flow = dfs(s, t, INF);
+
+            if (flow == 0)
+            {
+                break;
+            }
+
+            ans += flow;
+        }
+    }
+
+    return ans;
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, s, t;
+    cin >> n >> m >> s >> t;
+
+    // 【对接 1】先决定全部点的编号，包括辅助点、源点和汇点
+    // 这里原图点编号为 1 到 n，s、t 也是其中的点
+    init(n);
+
+    // 【对接 2】根据题意建边，cap 表示最多允许通过的数量
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, cap;
+        cin >> u >> v >> cap;
+        add_edge(u, v, cap);
+    }
+
+    // 【对接 3】建图全部完成后调用，返回最大流数量
+    int ans = dinic(s, t);
+    cout << ans << '\n';
+}
+【基础代码结束】
+
+三、怎么对接到自己的题
+
+1. 把 main 前面的板子复制进去；保留 #define int long long 或改用 long long 存容量。
+2. 编号必须覆盖所有点，包括拆点、辅助点、S、T；S 和 T 必须不同。
+3. 建边前 init(最大点编号)，不要在建完边后 init。
+4. 根据模型调用 add_edge(u, v, cap)，最后调用 dinic(S, T)。
+5. 多组测试每组重新 init、建图、求解。
+6. dinic 会修改 g；同一残量图再次调用返回的是额外增广量，不是原来的总最大流。
+7. 建边表示允许关系，不需要提前选好方案；反向边负责调整之前的选择。
+
+容量注意：
+cap >= 0；边容量和最大流总和都要在 long long 范围内。
+INF 表示不希望成为瓶颈的连接，应大于可能的有限答案，且避免溢出。
+本代码 DFS 递归深度最多与点数同阶，极长链可能需要调整栈或改迭代实现。
+一般图 Dinic 最坏时间 O(V^2 E)，空间 O(V + E)。
+标准二分图单位容量匹配网络有 O(E sqrt(V)) 的界，不能推广到所有最大流图。
+
+四、常用转换：容量怎么设
+
+【1. 二分图匹配】
+左部 n 个点，右部 m 个点。
+左部编号 1..n；右部编号 n+1..n+m。
+S = n+m+1，T = n+m+2，init(T)。
+
+S -> 左部 i：容量 1。
+左部 i -> 右部 n+j：若允许匹配，容量 1。
+右部 n+j -> T：容量 1。
+
+dinic(S, T) = 最大匹配数量。
+
+【2. 多对多分配 / 两边都有数量限制】
+S -> 左部 i：容量为左部可提供或可选择的数量。
+左部 i -> 右部 j：容量为这一对最多允许分配的数量。
+右部 j -> T：容量为右部可接收的数量。
+
+同一对最多分配一次，就设中间边容量 1。
+同一对没有单独数量限制，可以设 INF 或一个足够大的上界。
+求满足所有需求：最大流等于需求总和，且每个需求都通过对应的汇点边限制。
+只比较总和而没有给各需求单独设容量，不能保证每个需求都满足。
+
+【3. 一个点最多使用 k 次：拆点】
+把 u 拆成 u_in、u_out，建 u_in -> u_out，容量 k。
+原来进入 u 的边接到 u_in；原来离开 u 的边从 u_out 接出。
+例如 u_in = u，u_out = u+n。
+原边 u -> v 变成 u_out -> v_in，容量按原边限制设置。
+所有经过 u 的流量都必须穿过这条容量 k 的边。
+
+【4. 同时使用两类资源】
+S -> 资源 A -> 对象_in -> 对象_out -> 资源 B -> T。
+资源边容量表示资源数量，对象_in -> 对象_out 限制对象使用次数。
+对象两侧分别建允许关系。
+要求两类资源的允许关系能分别判断；若某些 A、B 组合额外不合法，不能直接套这个图。
+
+【5. 边不相交 / 点不相交路径】
+有向边不相交：每条原边容量 1，最大流是最多边不相交的 S-T 路径数量。
+点不相交：中间点拆点，点内边容量 1，原图连接边按题目设容量。
+S、T 若允许所有路径共享，不能把它们也限制成只经过一次。
+
+【6. 多源点、多汇点】
+新增超级源 S、超级汇 T。
+S -> 各源点：容量为各源点供应量。
+各汇点 -> T：容量为各汇点接收量。
+无单独限制时使用足够大的容量。
+
+【7. 无向连接】
+若 u、v 两个方向都可通过，分别调用：
+add_edge(u, v, cap);
+add_edge(v, u, cap);
+自动生成的容量 0 反向边不是第二个方向的原边。
+若要求单条无向边的净流量方案，可将两个方向相抵；不要把它们的正流量直接相加。
+
+五、可选功能：提取一种最大流方案
+
+基础部分不用改 Edge，也不用加 ori。
+额外记录每次 add_edge 的正向边位置，就能区分原边与自动生成的反向边。
+边的位置用下标保存，不能存 Edge 指针或引用，因为 vector 扩容可能使它们失效。
+
+【对接 A】全局额外添加：
+
+vector<array<int, 2>> pos; // 第 i 次加的原边：{起点, 在 g[起点] 中的下标}
+vector<array<int, 3>> ans; // 最终正流量原边：{u, v, flow}
+
+【对接 B】在 init 中额外添加：
+
+pos.clear();
+ans.clear();
+
+【对接 C】在 add_edge 中，g[u].push_back(a) 之前添加：
+
+pos.push_back({u, x}); // x 是基础 add_edge 已经计算的 g[u].size()
+
+【对接 D】添加提取函数：
+
+void get_ans()
+{
+    ans.clear();
+
+    for (auto p : pos)
+    {
+        int u = p[0];
+        int id = p[1];
+        Edge &e = g[u][id];
+
+        // 配对反向边初始容量为 0，所以它现在的容量就是原边最终流量
+        // 每次 add_edge 都有独立配对，重边和反向原边也不会混淆
+        int flow = g[e.to][e.rev].cap;
+
+        if (flow > 0)
+        {
+            ans.push_back({u, e.to, flow});
+        }
+    }
+}
+
+【对接 E】在 main 中调用：
+
+int maxflow = dinic(s, t);
+get_ans();
+
+// ans 存当前求出的一种最大流方案，每项表示原边 u -> v 最终流了 flow
+for (auto e : ans)
+{
+    int u = e[0];
+    int v = e[1];
+    int flow = e[2];
+    // 根据题目只处理需要的边，不要直接输出所有源点边和汇点边
+}
+
+二分图匹配的输出示例（左部 1..n，右部 n+1..n+m）：
+
+for (auto e : ans)
+{
+    if (e[0] >= 1 && e[0] <= n && e[1] >= n + 1 && e[1] <= n + m)
+    {
+        cout << e[0] << " " << e[1] - n << '\n';
+    }
+}
+
+要查某一条原边：pos[i] 对应第 i+1 次 add_edge，包括辅助边。
+可在建某类边之前记录 pos.size()，作为该边的编号保存。
+方案可能不唯一；数组存的是每条边的流量，不是逐条 S-T 路径。
+一般流方案可以包含环流；需要完整路径列表时，还要另外做流分解。
+
+六、可选功能：提取最小割两侧
+
+基础 dinic 正常跑到结束后，最后一次 bfs 已经标记了残量图中源点可达的点。
+dep[u] != -1：u 属于源点侧。
+dep[u] == -1：u 属于汇点侧。
+
+若要输出被割的原边，使用上一节的 pos：
+
+for (auto p : pos)
+{
+    int u = p[0];
+    Edge &e = g[u][p[1]];
+
+    if (dep[u] != -1 && dep[e.to] == -1)
+    {
+        // 原边 u -> e.to 从源点侧跨到汇点侧，属于这个割
+        // 初始容量 = 正向剩余容量 + 配对反向剩余容量
+        int cap = e.cap + g[e.to][e.rev].cap;
+        if (cap > 0)
+        {
+            cout << u << " " << e.to << " " << cap << '\n';
+        }
+    }
+}
+
+上述割边的初始容量之和 = 最大流值。
+只有正向跨越“源点侧 -> 汇点侧”的原边计入割容量。
+取完最大流后若又修改图或调用别的 bfs，应先 bfs(s, t) 重新计算可达性。
