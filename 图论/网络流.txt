@@ -162,6 +162,10 @@ signed main()
     dep.resize(n + 1);
     cur.resize(n + 1);
 
+      //g.assign(n + 1, vector<Edge>());
+      //dep.assign(n + 1, 0);
+      //cur.assign(n + 1, 0);
+
     for (int i = 1; i <= m; i++)
     {
         int u, v, cap;
