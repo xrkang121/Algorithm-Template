@@ -1,0 +1,586 @@
+网络流模板（赛场版）
+
+==============================
+一、最大流 Dinic
+==============================
+
+用途：
+1. 求源点 S 到汇点 T 的最大流。
+2. 常见模型：
+   - 二分图最大匹配
+   - 每个点可以匹配多次（容量限制）
+   - 最多选多少条边 / 最多安排多少任务
+   - 点容量、边容量限制
+3. 如果只是普通二分图最大匹配，可以直接用匈牙利；需要容量时优先网络流。
+
+核心建图：
+S -> 左部点      容量 = 左部点允许使用次数
+左部点 -> 右部点 容量 = 这条关系允许使用次数，通常是 1
+右部点 -> T      容量 = 右部点允许使用次数
+
+例如：
+每行最多选 x 个，每列最多选 x 个：
+S -> 行 i        cap = x
+行 i -> 列 j     cap = 1
+列 j -> T        cap = x
+
+代码：
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = 1e18;
+
+typedef struct Edge
+{
+    int to;
+    int cap;
+    int rev;
+} Edge;
+
+vector<vector<Edge>> g;
+vector<int> dep;
+vector<int> cur;
+
+void add_edge(int u, int v, int cap)
+{
+    // 正向边：u -> v，容量 cap
+    // rev 表示这条边对应的反向边在 g[v] 中的下标
+    Edge a = {v, cap, (int)g[v].size()};
+
+    // 反向边：v -> u，初始容量 0
+    // 之后如果正向边走了流量，就会给反向边增加容量
+    Edge b = {u, 0, (int)g[u].size()};
+
+    g[u].push_back(a);
+    g[v].push_back(b);
+}
+
+int bfs(int s, int t)
+{
+    // bfs 建分层图
+    // dep[x] 表示 x 距离源点的层数
+    fill(dep.begin(), dep.end(), -1);
+
+    queue<int> q;
+    q.push(s);
+    dep[s] = 0;
+
+    while (!q.empty())
+    {
+        int u = q.front();
+        q.pop();
+
+        for (Edge e : g[u])
+        {
+            // 只有剩余容量 > 0 的边才可以走
+            if (e.cap > 0 && dep[e.to] == -1)
+            {
+                dep[e.to] = dep[u] + 1;
+                q.push(e.to);
+            }
+        }
+    }
+
+    return dep[t] != -1;
+}
+
+int dfs(int u, int t, int flow)
+{
+    // 到达汇点，返回当前能送到这里的流量
+    if (u == t)
+    {
+        return flow;
+    }
+
+    // 当前弧优化
+    // cur[u] 表示从哪一条边继续找，避免重复扫描已经没用的边
+    for (int &i = cur[u]; i < g[u].size(); i++)
+    {
+        Edge &e = g[u][i];
+
+        // 必须：
+        // 1. 还有剩余容量
+        // 2. 按分层图向下一层走
+        if (e.cap > 0 && dep[e.to] == dep[u] + 1)
+        {
+            int val = dfs(e.to, t, min(flow, e.cap));
+
+            if (val > 0)
+            {
+                // 正向边剩余容量减少
+                e.cap -= val;
+
+                // 反向边剩余容量增加
+                // 表示以后允许“撤销”之前送过去的流量
+                g[e.to][e.rev].cap += val;
+
+                return val;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int dinic(int s, int t)
+{
+    int ans = 0;
+
+    // 只要还能从 S 到 T 建出分层图，就继续增广
+    while (bfs(s, t))
+    {
+        fill(cur.begin(), cur.end(), 0);
+
+        while (1)
+        {
+            int flow = dfs(s, t, INF);
+
+            if (flow == 0)
+            {
+                break;
+            }
+
+            ans += flow;
+        }
+    }
+
+    return ans;
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+
+    g.resize(n + 1);
+    dep.resize(n + 1);
+    cur.resize(n + 1);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, cap;
+        cin >> u >> v >> cap;
+
+        add_edge(u, v, cap);
+    }
+
+    int s, t;
+    cin >> s >> t;
+
+    cout << dinic(s, t) << "\n";
+
+    return 0;
+}
+
+怎么用：
+1. 先确定总点数。
+2. 设置源点 S、汇点 T。
+3. g.resize(点数 + 1)，dep、cur 同样 resize。
+4. 用 add_edge(u,v,cap) 加边。
+5. 最后调用 dinic(S,T)。
+6. 返回值就是最大流。
+
+注意：
+- add_edge 是有向边。
+- 如果原图是无向边，一般要根据题意分别加两条有向边，不能直接把反向边当普通无向边。
+- 网络流中的反向边是“撤销之前选择”的工具，不是原图真实边。
+
+复杂度：
+一般竞赛中 Dinic 很快。
+理论上普通图可写成 O(V^2 E)。
+二分图匹配等常见场景通常表现很好。
+
+
+==============================
+二、二分图最大匹配如何转最大流
+==============================
+
+假设左边 n 个点，右边 m 个点。
+
+编号：
+左边：1 ~ n
+右边：n+1 ~ n+m
+S = 0
+T = n+m+1
+
+建边：
+S -> 左点          cap = 1
+左点 -> 右点       cap = 1
+右点 -> T          cap = 1
+
+最大流 = 最大匹配数。
+
+如果每个左点和右点允许匹配 x 次：
+S -> 左点          cap = x
+左点 -> 右点       cap = 1
+右点 -> T          cap = x
+
+
+==============================
+三、点容量怎么处理
+==============================
+
+如果题目限制：
+一个点最多通过 cap[x] 单位流。
+
+普通网络流限制的是“边容量”，所以要拆点。
+
+把点 x 拆成：
+x_in
+x_out
+
+连：
+x_in -> x_out，容量 = cap[x]
+
+所有原来进入 x 的边接到 x_in。
+所有原来从 x 出发的边从 x_out 连出去。
+
+这样经过 x 的总流量就不会超过 cap[x]。
+
+
+==============================
+四、最小割
+==============================
+
+最大流最小割定理：
+
+最大流 = 最小割容量。
+
+“割”表示把点分成两部分：
+S 在左边，T 在右边。
+所有从左边连向右边的边容量和，就是这个割的容量。
+
+最小割常见用途：
+1. 最少删除多少代价，使 S 和 T 不连通。
+2. 二选一问题。
+3. 最小代价阻断路径。
+4. 点权最小割时配合拆点。
+
+Dinic 跑完后：
+从 S 出发，只走剩余容量 > 0 的边能到达的点，属于 S 侧。
+其他点属于 T 侧。
+
+
+==============================
+五、费用流（最小费用最大流）
+==============================
+
+普通最大流只关心：
+最多能送多少流。
+
+费用流额外考虑：
+每通过一条边 1 单位流，会产生 cost 的费用。
+
+目标通常是：
+在最大流最大的前提下，使总代价最小。
+
+每条边有：
+cap  容量
+cost 单位流费用
+
+例如：
+给每个人分配一个任务：
+人 i -> 任务 j
+容量 = 1
+费用 = 做这个任务的代价
+
+最大流保证尽量多人被分配。
+最小费用保证总代价最小。
+
+
+==============================
+六、最小费用最大流 SPFA 版
+==============================
+
+适合：
+数据范围中等，边数不是特别大。
+优点：好写，好理解。
+缺点：SPFA 最坏可能慢。
+
+代码：
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = 1e18;
+
+typedef struct Edge
+{
+    int to;
+    int cap;
+    int cost;
+    int rev;
+} Edge;
+
+vector<vector<Edge>> g;
+vector<int> dis;
+vector<int> inq;
+vector<int> pre_v;
+vector<int> pre_e;
+
+void add_edge(int u, int v, int cap, int cost)
+{
+    Edge a = {v, cap, cost, (int)g[v].size()};
+    Edge b = {u, 0, -cost, (int)g[u].size()};
+
+    g[u].push_back(a);
+    g[v].push_back(b);
+}
+
+int spfa(int s, int t)
+{
+    fill(dis.begin(), dis.end(), INF);
+    fill(inq.begin(), inq.end(), 0);
+
+    queue<int> q;
+    q.push(s);
+    dis[s] = 0;
+    inq[s] = 1;
+
+    while (!q.empty())
+    {
+        int u = q.front();
+        q.pop();
+        inq[u] = 0;
+
+        for (int i = 0; i < g[u].size(); i++)
+        {
+            Edge &e = g[u][i];
+
+            if (e.cap > 0 && dis[e.to] > dis[u] + e.cost)
+            {
+                dis[e.to] = dis[u] + e.cost;
+                pre_v[e.to] = u;
+                pre_e[e.to] = i;
+
+                if (inq[e.to] == 0)
+                {
+                    inq[e.to] = 1;
+                    q.push(e.to);
+                }
+            }
+        }
+    }
+
+    return dis[t] != INF;
+}
+
+pair<int, int> mincost_maxflow(int s, int t)
+{
+    int flow = 0;
+    int cost = 0;
+
+    while (spfa(s, t))
+    {
+        int add = INF;
+
+        for (int v = t; v != s; v = pre_v[v])
+        {
+            int u = pre_v[v];
+            int id = pre_e[v];
+
+            add = min(add, g[u][id].cap);
+        }
+
+        for (int v = t; v != s; v = pre_v[v])
+        {
+            int u = pre_v[v];
+            int id = pre_e[v];
+
+            Edge &e = g[u][id];
+
+            e.cap -= add;
+            g[e.to][e.rev].cap += add;
+        }
+
+        flow += add;
+        cost += add * dis[t];
+    }
+
+    return {flow, cost};
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+
+    g.resize(n + 1);
+    dis.resize(n + 1);
+    inq.resize(n + 1);
+    pre_v.resize(n + 1);
+    pre_e.resize(n + 1);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, cap, cost;
+        cin >> u >> v >> cap >> cost;
+
+        add_edge(u, v, cap, cost);
+    }
+
+    int s, t;
+    cin >> s >> t;
+
+    pair<int, int> ans = mincost_maxflow(s, t);
+
+    cout << ans.first << " " << ans.second << "\n";
+
+    return 0;
+}
+
+返回：
+ans.first  = 最大流
+ans.second = 在这个最大流下的最小费用
+
+
+==============================
+七、费用流建图常见套路
+==============================
+
+1. 最小费用最大匹配
+
+S -> 左点          cap=1 cost=0
+左点 -> 右点       cap=1 cost=匹配代价
+右点 -> T          cap=1 cost=0
+
+2. 最大费用最大流
+
+如果想最大化收益 value：
+把费用写成 -value。
+
+跑最小费用最大流后：
+最大收益 = -cost
+
+3. 只想流固定的 K 单位
+
+可以在 mincost_maxflow 里判断：
+flow == K 时提前停止。
+
+4. 不一定要求最大流，只要求最小费用
+
+这种题要看题意，不能直接套“最大流优先”。
+一般会通过额外边、固定流量或者费用设计控制。
+
+
+==============================
+八、反向边为什么必须有
+==============================
+
+假设之前选了一条：
+A -> X
+
+后来发现换成：
+A -> Y
+B -> X
+
+可以得到更优答案。
+
+如果没有反向边，之前 A -> X 的选择无法撤销。
+
+反向边相当于：
+“允许把之前送过去的流退回来，再重新分配。”
+
+最大流中：
+正向边走 val：
+正向 cap -= val
+反向 cap += val
+
+费用流中：
+反向边费用 = -cost
+这样撤销之前的流时，费用也会被抵消。
+
+
+==============================
+九、网络流题看到什么关键词要想到
+==============================
+
+最大流：
+- 最多选多少
+- 最多安排多少
+- 每个人最多做几个
+- 每个位置最多用几次
+- 每行 / 每列容量限制
+- 多重匹配
+
+最小割：
+- 最少删除多少
+- 最小代价使两边断开
+- 最少花费阻止所有路径
+- 二选一 + 冲突限制
+
+费用流：
+- 最大匹配同时代价最小
+- 分配问题
+- 每种选择有费用 / 收益
+- 最大收益匹配
+- 最小代价运输
+
+
+==============================
+十、当前这道网格染色题怎么套
+==============================
+
+固定使用 x 种非零颜色。
+
+要求：
+每一行最多有 x 个非零格子。
+每一列最多有 x 个非零格子。
+
+建二分图：
+左边 = 行
+右边 = 列
+每个空格 (i,j) 连 行 i -> 列 j
+
+网络流：
+S -> 行 i          cap = x
+行 i -> 列 j       cap = 1
+列 j -> T          cap = x
+
+最大流 f(x)：
+表示最多有多少空格可以染非零颜色。
+
+设空格总数为 cnt。
+那么必须染 0 的格子数：
+z = cnt - f(x)
+
+总代价：
+ans = c * x + d * z
+    = c * x + d * (cnt - f(x))
+
+枚举 x，取最小值即可。
+
+
+==============================
+十一、赛场使用顺序
+==============================
+
+最大流：
+1. 确定点的含义。
+2. 确定 S、T。
+3. 想清楚每条边容量表示什么限制。
+4. add_edge 建图。
+5. dinic(S,T)。
+
+费用流：
+1. 先保证容量模型正确。
+2. 再给每条选择边加入 cost。
+3. add_edge(u,v,cap,cost)。
+4. mincost_maxflow(S,T)。
+5. 返回 {flow,cost}。
+
+最重要原则：
+容量 = “最多允许多少次”
+费用 = “每使用一次付出多少代价”
+流量 = “实际选择了多少次”
