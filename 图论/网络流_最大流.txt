@@ -249,31 +249,83 @@ add_edge(v, u, cap);
 自动生成的容量 0 反向边不是第二个方向的原边。
 若要求单条无向边的净流量方案，可将两个方向相抵；不要把它们的正流量直接相加。
 
-五、可选功能：提取一种最大流方案
+五、可选功能：提取一种最大流的完整 S-T 路径方案
 
-基础部分不用改 Edge，也不用加 ori。
-额外记录每次 add_edge 的正向边位置，就能区分原边与自动生成的反向边。
-边的位置用下标保存，不能存 Edge 指针或引用，因为 vector 扩容可能使它们失效。
+注意：vector<array<int, 3>> 不是“最多三条边”，而是每一项存三个字段 {u,v,flow}。
+但那种写法只记录每条边的流量，确实不是完整的 S -> ... -> T 路径。
+
+下面把最大流分解成若干条完整路径：
+
+paths[i].first：第 i 条完整路径，依次存路径经过的点。
+paths[i].second：这条路径承载的流量。
+
+所有 paths[i].second 之和等于最大流值。
+若所有边容量都是 1，那么每条路径的流量都是 1。
+如果一条路线承载 5 单位流量，只保存一次路径，并把 second 记为 5，不重复存 5 次。
+
+基础部分不用修改 Edge，也不用增加 ori。
+额外记录每次 add_edge 加入的正向原边位置，就能区分原边和自动生成的反向边。
+只能记录下标，不能记录 Edge 指针或引用，因为 vector 扩容后指针或引用可能失效。
 
 【对接 A】全局额外添加：
 
-vector<array<int, 2>> pos; // 第 i 次加的原边：{起点, 在 g[起点] 中的下标}
-vector<array<int, 3>> ans; // 最终正流量原边：{u, v, flow}
+typedef struct FlowEdge
+{
+    int to;
+    int flow;
+} FlowEdge;
+
+vector<array<int, 2>> pos; // 每次 add_edge 加入的原边：{起点, g[起点] 中的下标}
+vector<vector<FlowEdge>> flow_g; // 跑完最大流后，只保存流量大于 0 的原边
+vector<pair<vector<int>, int>> paths; // {一条完整的 S-T 路径, 这条路径的流量}
 
 【对接 B】在 init 中额外添加：
 
 pos.clear();
-ans.clear();
+flow_g.clear();
+paths.clear();
 
 【对接 C】在 add_edge 中，g[u].push_back(a) 之前添加：
 
-pos.push_back({u, x}); // x 是基础 add_edge 已经计算的 g[u].size()
+pos.push_back({u, x}); // x 是基础 add_edge 中已经计算的 g[u].size()
 
-【对接 D】添加提取函数：
+【对接 D】添加下面两个函数：
 
-void get_ans()
+int find_path(int u, int t, int flow, vector<int> &path, vector<int> &vis)
 {
-    ans.clear();
+    if (u == t)
+    {
+        return flow;
+    }
+
+    vis[u] = 1;
+
+    for (FlowEdge &e : flow_g[u])
+    {
+        if (e.flow > 0 && vis[e.to] == 0)
+        {
+            path.push_back(e.to);
+
+            int val = find_path(e.to, t, min(flow, e.flow), path, vis);
+
+            if (val > 0)
+            {
+                e.flow -= val;
+                return val;
+            }
+
+            path.pop_back();
+        }
+    }
+
+    return 0;
+}
+
+void get_paths(int s, int t)
+{
+    flow_g.clear();
+    flow_g.resize(g.size());
+    paths.clear();
 
     for (auto p : pos)
     {
@@ -281,45 +333,70 @@ void get_ans()
         int id = p[1];
         Edge &e = g[u][id];
 
-        // 配对反向边初始容量为 0，所以它现在的容量就是原边最终流量
-        // 每次 add_edge 都有独立配对，重边和反向原边也不会混淆
+        // 配对反向边初始容量为 0，所以现在的容量就是这条原边最终流过的流量
         int flow = g[e.to][e.rev].cap;
 
         if (flow > 0)
         {
-            ans.push_back({u, e.to, flow});
+            flow_g[u].push_back({e.to, flow});
         }
+    }
+
+    while (1)
+    {
+        vector<int> path;
+        vector<int> vis(g.size(), 0);
+
+        path.push_back(s);
+
+        // 每次找一条完整的 s -> t 路径，并取这条路径上的最小剩余流量
+        int flow = find_path(s, t, INF, path, vis);
+
+        if (flow == 0)
+        {
+            break;
+        }
+
+        paths.push_back({path, flow});
     }
 }
 
 【对接 E】在 main 中调用：
 
 int maxflow = dinic(s, t);
-get_ans();
+get_paths(s, t);
 
-// ans 存当前求出的一种最大流方案，每项表示原边 u -> v 最终流了 flow
-for (auto e : ans)
+cout << maxflow << '\n';
+
+for (auto now : paths)
 {
-    int u = e[0];
-    int v = e[1];
-    int flow = e[2];
-    // 根据题目只处理需要的边，不要直接输出所有源点边和汇点边
-}
+    vector<int> path = now.first;
+    int flow = now.second;
 
-二分图匹配的输出示例（左部 1..n，右部 n+1..n+m）：
+    cout << "这条路径的流量：" << flow << '\n';
 
-for (auto e : ans)
-{
-    if (e[0] >= 1 && e[0] <= n && e[1] >= n + 1 && e[1] <= n + m)
+    for (int i = 0; i < (int)path.size(); i++)
     {
-        cout << e[0] << " " << e[1] - n << '\n';
+        if (i > 0)
+        {
+            cout << " -> ";
+        }
+
+        cout << path[i];
     }
+
+    cout << '\n';
 }
 
-要查某一条原边：pos[i] 对应第 i+1 次 add_edge，包括辅助边。
-可在建某类边之前记录 pos.size()，作为该边的编号保存。
-方案可能不唯一；数组存的是每条边的流量，不是逐条 S-T 路径。
-一般流方案可以包含环流；需要完整路径列表时，还要另外做流分解。
+例如最大流为 7，可能得到：
+
+S -> 1 -> 3 -> T，流量 4
+S -> 2 -> 3 -> T，流量 2
+S -> 2 -> 4 -> T，流量 1
+
+三条路径携带的流量之和为 4+2+1=7。
+最大流方案可能不唯一；这里得到的是 Dinic 当前结果对应的一种路径分解。
+若最终流中还存在与 S-T 流量无关的环流，get_paths 不会输出这些环；它只返回承载最大流的 S-T 路径。
 
 六、可选功能：提取最小割两侧
 
