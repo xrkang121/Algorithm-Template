@@ -1,0 +1,126 @@
+博弈论 05 —— 必胜 / 必败态 DP（不需要 SG 数值时首选）
+============================================================
+【什么时候用】
+1. 只需要判断先手赢不赢，不需要把不同独立游戏异或。
+2. 任意有限、正常玩法、双方操作相同的博弈；状态图无环或能严格下降。
+3. 经典“能否把对方送到必败态”的状态递推；状态可是一维、二维、区间、图点、棋盘等。
+
+【怎么用】
+win[x]=1：当前轮到操作的人有必胜策略；win[x]=0：当前玩家必败。
+无合法操作 -> win[x]=0。
+有合法后继 y 使 win[y]=0 -> win[x]=1。
+所有合法后继都 win[y]=1 -> win[x]=0。
+这只产生 0/1，不是 SG！不要把 win[x] 直接去异或。
+
+【板子 A：普通取石子胜负 DP，独立可运行 C++17】
+输入 n k，k 个正整数 op[i]；一堆 n 个，每次取一个允许数量，最后取完者赢。
+修改位置：枚举每种操作，生成“下一状态”；有一个下一状态必败就标为必胜。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, k;
+    cin >> n >> k;
+    vector<int> op(k);
+    for (int &x : op) cin >> x;
+
+    vector<int> win(n + 1, 0);
+    for (int x = 1; x <= n; x++)
+    {
+        for (int d : op)
+        {
+            if (d <= x && win[x - d] == 0)
+            {
+                win[x] = 1;
+                break;
+            }
+        }
+    }
+
+    cout << (win[n] ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+复杂度 O(nk)，空间 O(n)，不需要 mex。
+
+【板子 B：有向 DAG 上的胜负 DP，独立可运行 C++17】
+输入 n m s 和 m 条 u->v；当前在 u 可沿任意出边走到 v；走不了的人输。
+使用拓扑序逆序计算。若有环，此版不适用，改看专题 08。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, s;
+    cin >> n >> m >> s;
+    vector<vector<int>> g(n + 1);
+    vector<int> indeg(n + 1, 0);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v;
+        cin >> u >> v;
+        g[u].push_back(v);
+        indeg[v]++;
+    }
+
+    queue<int> q;
+    for (int i = 1; i <= n; i++)
+    {
+        if (indeg[i] == 0) q.push(i);
+    }
+
+    vector<int> order;
+    while (!q.empty())
+    {
+        int u = q.front();
+        q.pop();
+        order.push_back(u);
+        for (int v : g[u])
+        {
+            indeg[v]--;
+            if (indeg[v] == 0) q.push(v);
+        }
+    }
+
+    if ((int)order.size() != n)
+    {
+        cout << "Graph has a cycle\n";
+        return 0;
+    }
+
+    vector<int> win(n + 1, 0);
+    for (int i = n - 1; i >= 0; i--)
+    {
+        int u = order[i];
+        for (int v : g[u])
+        {
+            if (win[v] == 0)
+            {
+                win[u] = 1;
+                break;
+            }
+        }
+    }
+
+    cout << (win[s] ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+复杂度 O(n+m)。无出边点默认为必败，按逆拓扑保证后继已算好。
+
+【常见误判】
+1. 双方合法操作规则不同（如一人走横一人走竖）时，状态必须加上当前轮到哪一方。
+2. 最大化分数、双方收益不同、先取完特定目标才赢，不能简单用这个 0/1 转移，需要相应 DP/minimax。
+3. 含环且无限游玩允许平局时，未必只有胜/败两态，改用逆向状态传播见 08。
