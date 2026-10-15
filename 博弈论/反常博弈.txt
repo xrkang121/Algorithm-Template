@@ -1,0 +1,145 @@
+博弈论 07 —— 反常博弈（最后操作者输 / Misère Play）
+============================================================
+【什么时候用】
+题目规定“进行最后一次操作的人输”或“不能操作的人赢”，与正常玩法相反。
+注意：不能把“正常 SG = 0/非 0”和“独立 SG 异或”直接照搬为反常玩法。
+
+一、反常 Nim（标准特例）
+------------------------------------------------------------
+【什么时候用】n 堆石子，每次选择一堆取任意正数，取最后一个石子的人输。
+【怎么用】
+若所有非空堆大小都为 1：非空堆数为偶数 => 先手赢；奇数 => 先手输。
+若存在至少一堆大小 > 1：总异或 xr != 0 => 先手赢；xr == 0 => 先手输。
+这里 n 堆可以包含零，需先忽略零堆。
+
+【板子 A：反常 Nim 胜负 + 构造一步，独立可运行 C++17】
+输入 n 和各堆大小（可为 0）。
+输出 First/Second；若 First，再输出“修改哪堆、修改后的石子数”。
+注意：初始全 0 时按“无合法操作者获胜”解释，直接输出 First，且没有合法操作可输出。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+    vector<int> a(n + 1);
+    int xr = 0, cnt_one = 0, big = 0, last = -1;
+
+    for (int i = 1; i <= n; i++)
+    {
+        cin >> a[i];
+        xr ^= a[i];
+        if (a[i] == 1) cnt_one++;
+        if (a[i] > 1)
+        {
+            big++;
+            last = i;
+        }
+    }
+
+    if (big == 0)
+    {
+        if (cnt_one == 0)
+        {
+            cout << "First\n";
+            return 0;
+        }
+        if (cnt_one & 1)
+        {
+            cout << "Second\n";
+            return 0;
+        }
+        cout << "First\n";
+        for (int i = 1; i <= n; i++)
+        {
+            if (a[i] == 1)
+            {
+                cout << i << " 0\n";
+                break;
+            }
+        }
+        return 0;
+    }
+
+    if (xr == 0)
+    {
+        cout << "Second\n";
+        return 0;
+    }
+
+    cout << "First\n";
+    if (big == 1)
+    {
+        int b = (cnt_one % 2 == 0 ? 1 : 0);
+        cout << last << " " << b << "\n";
+    }
+    else
+    {
+        for (int i = 1; i <= n; i++)
+        {
+            int b = a[i] ^ xr;
+            if (b < a[i])
+            {
+                cout << i << " " << b << "\n";
+                break;
+            }
+        }
+    }
+    return 0;
+}
+```
+复杂度 O(n)。只有 big == 1 时才要特判把大堆变成 0 或 1；big >= 2 时普通 Nim 的清零异或操作可用。
+
+二、一般反常取石子：胜负 DP
+------------------------------------------------------------
+【什么时候用】规则不是标准 Nim（比如每次只能取 1、3、4），又规定最后操作者输。
+【怎么用】在“无法继续者获胜”的定义下，终止态 win[0]=1（与正常玩法相反）。
+对有操作的状态，仍然存在可到达的必败态就必胜。
+代码只求单堆输赢；如果题目对初始“空堆”另有定义，要以题面为准。
+
+【板子 B：反常减法游戏，独立可运行 C++17】
+输入 n k 和 k 个正整数 op。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, k;
+    cin >> n >> k;
+    vector<int> op(k);
+    for (int &x : op) cin >> x;
+
+    vector<int> win(n + 1, 0);
+    for (int x = 0; x <= n; x++)
+    {
+        int can = 0;
+        for (int d : op)
+        {
+            if (d > x) continue;
+            can = 1;
+            if (!win[x - d]) win[x] = 1;
+        }
+        if (!can) win[x] = 1;
+    }
+
+    cout << (win[n] ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+复杂度 O(nk)。op 必须为正数且没有其它终止条件。终止态无操作者获胜是本专题约定。
+
+【易错】
+1. 反常玩法并非“把普通 Nim 胜负取反”，只有部分临界局面表现不同。
+2. 多个独立游戏的反常组合通常不能直接异或普通 SG 值，除非有额外定理支持。
+3. 某些题目规定“先达到目标的人输”而非“最后操作者输”，需要重新建模终止规则。
