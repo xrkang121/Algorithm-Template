@@ -1,0 +1,114 @@
+博弈论 03 —— 经典取石子博弈（Bash / Wythoff / Fibonacci Nim）
+============================================================
+【优先判断规则是否完全一致】
+看到“一堆每次取 1..m”：先想 Bash。
+看到“两堆，任意取一堆，或两堆同时取相同正数”：先想 Wythoff。
+看到“首步不能取完，之后最多取上一步 2 倍”：先想 Fibonacci Nim。
+任何一条规则变了，就不要强套对应结论。
+
+一、Bash 博弈（巴什）
+------------------------------------------------------------
+【什么时候用】一堆 n 个，一步取 1..m 个，不超过剩余量，最后取完的人获胜。
+【怎么用】n % (m+1) == 0 先手必败，否则必胜。
+【构造】若必胜，首步取 n % (m+1) 个，之后和对手每轮凑 m+1。
+【板子 A：独立可运行，C++17】
+输入 n m。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m;
+    cin >> n >> m;
+    int x = n % (m + 1);
+    if (x == 0) cout << "Second\n";
+    else cout << "First\n" << x << "\n";
+    return 0;
+}
+```
+复杂度 O(1)。保证 m>=1 且 m+1 不溢出整型；需要大整数时另做处理。
+
+二、Wythoff 博弈（威佐夫）
+------------------------------------------------------------
+【什么时候用】两堆 a,b；一步可从单独一堆取任意正数，或同时从两堆取相同正数，拿完者获胜。
+【怎么用】先 a=min(a,b), b=max(a,b), k=b-a, φ=(1+sqrt(5))/2。
+若 a=floor(k*φ)，则是必败态；否则必胜。
+注意：a,b 可到 1e18，直接 double 算 floor 会有精度风险；用整数平方根处理。
+整数等价式：floor(k*φ) = floor((k + floor(sqrt(5*k*k))) / 2)。
+【板子 B：整数精确判断，独立可运行 C++17】
+输入 a b，非负且不超过 1e18。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+int isqrt128(__int128 x)
+{
+    int r = sqrtl((long double)x);
+    while ((__int128)(r + 1) * (r + 1) <= x) r++;
+    while ((__int128)r * r > x) r--;
+    return r;
+}
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int a, b;
+    cin >> a >> b;
+    if (a > b) swap(a, b);
+
+    int k = b - a;
+    __int128 val = (__int128)5 * k * k;
+    int s = isqrt128(val);
+    int target = (k + s) / 2;
+
+    cout << (a == target ? "Second" : "First") << "\n";
+    return 0;
+}
+```
+复杂度约 O(1)，乘法中间值使用 __int128。
+
+三、Fibonacci Nim（斐波那契取石子）
+------------------------------------------------------------
+【什么时候用】一堆 n 个，第一步必须至少留下 1 个；此后每步最多拿上一位玩家拿走数量的 2 倍；最后拿完者赢。
+【怎么用】标准初始局面的必败石子数恰是 1,2,3,5,8,13,...（从 1,2 开始的 Fibonacci 数列）。
+重要：不是普通的取石子状态；如果要求中途状态，必须把“上一手拿了多少/本轮最大允许取多少”记入状态。
+【板子 C：初始局面胜负，独立可运行 C++17】
+输入 n，1 <= n <= 1e18。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+
+    vector<int> fib = {1, 2};
+    while (fib.back() < n)
+    {
+        int sz = fib.size();
+        int a = fib[sz - 2], b = fib[sz - 1];
+        if (a > LLONG_MAX - b) break;
+        fib.push_back(a + b);
+    }
+
+    int flag = binary_search(fib.begin(), fib.end(), n);
+    cout << (flag ? "Second" : "First") << "\n";
+    return 0;
+}
+```
+复杂度 O(log n)。首步允许拿完全部、倍数改变或最后取完算输时结论都不成立。
+
+【总提醒】公式来自严格的规则；题目未完全吻合时，先写 win/SG 打表再看规律。
