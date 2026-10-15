@@ -1,0 +1,122 @@
+博弈论 04 —— 拆分博弈与树上博弈
+============================================================
+【什么时候用】
+1. 一步把当前游戏拆成两个或多个“后续互不影响的子游戏”。
+2. 树上删掉一条边，导致不含根的整块子树消失。
+3. 树上移动一个棋子，或树上删点等其他模型：不能沿用删边公式，要重新定义状态/转移。
+
+一、拆分型 SG
+------------------------------------------------------------
+【怎么用】对于每一种合法操作，如果留下 2 个独立游戏 a,b，操作后的整体 SG = sg[a] ^ sg[b]。
+故 sg[x] = mex({ sg[a] ^ sg[b] | (a,b) 是从 x 合法拆分 })。
+如果留下 t 个子游戏，就是 t 个 sg 按位异或。
+如果操作还同时留下其他不变的组件，那些组件的 SG 也要参与总异或。
+
+【板子 A：一堆拆成两堆非空，独立可运行 C++17】
+输入 n；一次选一堆 x>=2，拆成两个正整数 a+b=x，最后无法拆分的人输；初始一堆大小为 n。
+修改位置：i 从 1 到 x-1 的枚举改成题目允许的拆分；如果还允许移除，则把移除型后继 SG 也加进 vis。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+    vector<int> sg(n + 1, 0);
+
+    for (int x = 2; x <= n; x++)
+    {
+        int d = x - 1;
+        vector<int> vis(d + 1, 0);
+        for (int i = 1; i < x; i++)
+        {
+            int v = sg[i] ^ sg[x - i];
+            if (v <= d) vis[v] = 1;
+        }
+        int res = 0;
+        while (vis[res]) res++;
+        sg[x] = res;
+    }
+
+    cout << sg[n] << "\n";
+    cout << (sg[n] ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+复杂度 O(n^2)，此板子是“最直观的拆分”，大 n 要利用具体规则找规律、优化转移。
+
+二、树上删边（Rooted Green Hackenbush 模型）
+------------------------------------------------------------
+【什么时候用】一棵有根树，双方轮流删除任意一条还与根连通的边；与根失去连通的整棵部分立即删除；无边可删的人输。
+【公式】sg[u] = XOR_{v 为 u 的儿子} (sg[v] + 1)。叶节点 sg=0。
+【为什么】儿子侧的分支独立；连向儿子的边可直接砍掉，其分支 SG 是 sg[v]+1（不是 mex 子节点！）。
+【用法】先定根，再自底向上算，每个儿子贡献 sg[child]+1，所有孩子异或。
+
+【板子 B：树上删边，栈/顺序版 DFS，独立可运行 C++17】
+输入 n 和 n-1 条无向边；以 1 为根。输出总 SG 和胜负。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+    vector<vector<int>> tree(n + 1);
+    for (int i = 1; i < n; i++)
+    {
+        int u, v;
+        cin >> u >> v;
+        tree[u].push_back(v);
+        tree[v].push_back(u);
+    }
+
+    vector<int> fa(n + 1, -1), sg(n + 1, 0);
+    vector<int> order;
+    order.reserve(n);
+    order.push_back(1);
+    fa[1] = 0;
+
+    for (int i = 0; i < (int)order.size(); i++)
+    {
+        int u = order[i];
+        for (int v : tree[u])
+        {
+            if (v == fa[u]) continue;
+            fa[v] = u;
+            order.push_back(v);
+        }
+    }
+
+    for (int i = (int)order.size() - 1; i >= 0; i--)
+    {
+        int u = order[i];
+        if (fa[u] != 0) sg[fa[u]] ^= (sg[u] + 1);
+    }
+
+    cout << sg[1] << "\n";
+    cout << (sg[1] ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+复杂度 O(n)，树默认连通且根为 1。
+
+三、树上移动一个棋子（完全不同的模型）
+------------------------------------------------------------
+【什么时候用】只有一个棋子在 u，一步只能沿有向边/往某个孩子 v 移动，不能移动的人输。
+【公式】sg[u] = mex({sg[v] | v 是合法下一步})，不能套 sg[v]+1。
+多个互不影响棋子并且一步只移动一个棋子时，才考虑各棋子状态 SG 异或；棋子能碰撞、阻塞时要重建联合状态。
+
+【易错】
+1. “拆开后任选一个继续玩”和“拆开后两局都留在场上”是两种不同转移；只有后者按 sg[a]^sg[b]。
+2. 树上删边公式要求与根断开的部分消失；若操作是删除点/沿边移动，则通常不成立。
+3. SG 非零表示先手能赢，不代表有一个子树单独 SG 非零就够；看最终总异或。
