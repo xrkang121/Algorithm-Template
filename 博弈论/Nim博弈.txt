@@ -1,0 +1,100 @@
+博弈论 02 —— Nim 博弈与阶梯 Nim
+============================================================
+【什么时候用】
+普通 Nim：有 n 堆非负石子，一步只能选择一堆，任意拿走正数且不超过该堆数量，拿最后一个获胜。
+阶梯 Nim：第 i 阶有 a[i] 个石子，一步把第 i 阶的任意正数移到第 i-1 阶；第 1 阶移出去即删除，最后能操作的人获胜。
+【别套错】若每次只能取特定数量、一次可动多堆、最后拿的人输，结论通常会变；分别看 SG 或反常专题。
+
+【怎么用：普通 Nim】
+计算 xor = a[1] ^ a[2] ^ ... ^ a[n]。
+xor == 0：先手必败；否则必胜。
+要构造先手必胜操作：找一个 a[i]，令 b = a[i] ^ xor；如果 b < a[i]，把第 i 堆从 a[i] 改为 b。
+这样新局面的总异或一定为 0。
+
+【板子 A：普通 Nim 胜负 + 一步必胜操作，独立可运行 C++17】
+输入 n，之后 n 个堆大小。若赢，输出 First 与“选择哪堆、新堆大小”；否则 Second。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+    vector<int> a(n + 1);
+    int xr = 0;
+
+    for (int i = 1; i <= n; i++)
+    {
+        cin >> a[i];
+        xr ^= a[i];
+    }
+
+    if (xr == 0)
+    {
+        cout << "Second\n";
+        return 0;
+    }
+
+    cout << "First\n";
+    for (int i = 1; i <= n; i++)
+    {
+        int b = a[i] ^ xr;
+        if (b < a[i])
+        {
+            cout << i << " " << b << "\n";
+            break;
+        }
+    }
+    return 0;
+}
+```
+复杂度 O(n)。普通 Nim 中单堆的 SG 值等于堆大小，所以直接异或堆大小。
+
+【怎么用：阶梯 Nim】
+只异或编号为 1、3、5、... 的阶梯石子数（注意第 1 阶可直接移出游戏）。
+奇数阶异或 == 0 则败，否则胜；偶数阶不直接贡献异或。
+题目若把地面编号为 0，需检查哪一阶是真正可直接移走石子的第一阶。
+
+【板子 B：阶梯 Nim，独立可运行 C++17】
+输入 n，各阶 a[1..n]。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+    int xr = 0;
+
+    for (int i = 1; i <= n; i++)
+    {
+        int x;
+        cin >> x;
+        if (i & 1) xr ^= x;
+    }
+
+    cout << (xr ? "First" : "Second") << "\n";
+    return 0;
+}
+```
+
+【额外识别：树上搬石子】
+如果每步可以把某个非根节点的任意正数石子搬到其父亲，根上的石子已经退出游戏（不能再搬），则异或“距离根为奇数”的节点石子数；这是树形阶梯 Nim。
+这里根的深度为 0，非根父子距离按边数计，和上面的阶梯编号要对应清楚。
+
+【易错】
+1. 普通 Nim 的 xor 是石子数量，不能直接用于“一次只能取 1 或 2 个”等限制版。
+2. 阶梯 Nim 必须是一次只从一阶移到紧邻下一阶，允许选任意正数。
+3. 找必胜操作时 b 必须严格小于原堆 a[i]；xr 非 0 时保证至少存在一个。
