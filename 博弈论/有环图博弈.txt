@@ -1,0 +1,94 @@
+博弈论 08 —— 有环图博弈（Win / Lose / Draw 逆向传播）
+============================================================
+【什么时候用】
+1. 游戏状态形成有向图，存在环，双方可以反复绕圈。
+2. 每步沿一条有向边移动到后继点；到无出边状态者输（正常玩法）。
+3. 若永远无人输且无限继续算平局，则需要区分必胜、必败、平局，不能直接做 DAG 的 SG。
+
+【怎么用】
+state[u]：Win / Lose / Draw，都是指“轮到当前玩家操作时”的结论。
+初始化：所有无出边点为 Lose，入队。
+逆向处理：
+- 若 v 是 Lose，则任意能一步到 v 的 u 都是 Win。
+- 若 v 是 Win，则每个前驱 u 的“尚未确认为 Win 的出边数量”减一；u 的所有后继都是 Win 时，u 是 Lose。
+- 最后没被标成 Win/Lose 的状态是 Draw：双方最优且允许无限循环记平局的情况下，可以维持不输。
+该方法也适用于状态图由其他模型生成，只要“每步换人、到无动作状态者输、无限对局算和局”。
+
+【板子：有向状态图三态判定，独立可运行 C++17】
+输入 n m s 和 m 条有向边 u v，询问起点 s；n 个状态编号 1..n。
+需改的位置：把每个博弈状态映射到点 u，枚举其全部合法后继 v 建边。
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, s;
+    cin >> n >> m >> s;
+    vector<vector<int>> rev(n + 1);
+    vector<int> out(n + 1, 0);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v;
+        cin >> u >> v;
+        rev[v].push_back(u);
+        out[u]++;
+    }
+
+    vector<int> state(n + 1, -1);
+    queue<int> q;
+    for (int i = 1; i <= n; i++)
+    {
+        if (out[i] == 0)
+        {
+            state[i] = 0;
+            q.push(i);
+        }
+    }
+
+    while (!q.empty())
+    {
+        int v = q.front();
+        q.pop();
+
+        for (int u : rev[v])
+        {
+            if (state[u] != -1) continue;
+            if (state[v] == 0)
+            {
+                state[u] = 1;
+                q.push(u);
+            }
+            else
+            {
+                out[u]--;
+                if (out[u] == 0)
+                {
+                    state[u] = 0;
+                    q.push(u);
+                }
+            }
+        }
+    }
+
+    if (state[s] == 1) cout << "Win\n";
+    else if (state[s] == 0) cout << "Lose\n";
+    else cout << "Draw\n";
+    return 0;
+}
+```
+复杂度 O(n+m)，空间 O(n+m)，重复边也按独立合法选择一致处理。
+
+【和 DFS 判环的区别】
+“存在一个环”不代表起点一定 Draw；如果能强制让对手去一个必败点，仍是 Win。
+“可以走到终点”也不代表 Win，因为对手可能选择避开必败结局。
+
+【易错】
+1. 这里假设无限对局算 Draw。若规则规定达到次数上限、重复状态判负、长时间未结束判胜，不能直接使用。
+2. 若两人操作规则不同，状态要带上“轮到谁”，否则图点不能代表完整状态。
+3. 某些题目问“存在任意一条赢法”而非“双方最优策略”，它是不同的可达性问题。
