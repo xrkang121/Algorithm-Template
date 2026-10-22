@@ -1,0 +1,302 @@
+最小费用最大流（MCMF）通用板子
+============================================================
+专题：图论 -> 网络流 -> 最小费用最大流
+算法：初始 SPFA（仅有负费用边时）+ 势能 Dijkstra + 增广
+适用：有向图、整数容量、整数费用；无可达的负费用环。
+
+一、什么时候用
+------------------------------------------------------------
+1. 在容量约束下，先让总流量尽量大，再让总费用尽量小。
+2. 要恰好选择 K 个对象，且每个选择有费用、每个资源有使用次数限制。
+3. 二分图带权匹配：每个左点选一个右点，右点不能重复，最小化总费用。
+4. 多人/多物品分配、路径运输、带费用的选择等。
+
+识别关键词：
+“最多匹配多少个，同时总费用最小”；
+“恰好选 K 个，费用最小”；
+“每个对象选一种去向，去向容量有限，代价由选择决定”。
+
+注意：
+- 普通最大流：只有容量，没有费用。
+- 费用流：每条边有 cap（容量）与 cost（每单位流的费用）。
+- 最小费用最大流默认【先最大流量，再最小费用】。
+- 如果要求【恰好 K 单位流】，传入 need=K，并检查返回 flow==K。
+- 如果要求最大利润，通常把利润作为负费用，但需注意是否必须选满 K 个。
+
+二、怎么建图（最通用的三层模型）
+------------------------------------------------------------
+例如 n 个对象，各自可以选择一些资源，每个资源只能被用一次：
+
+S -> 对象 i -> 资源 j -> T
+
+S -> 对象 i：cap=1, cost=0
+对象 i -> 资源 j：cap=1, cost=选择这个资源的代价
+资源 j -> T：cap=1, cost=0
+
+这样每送出 1 单位流，就代表一个对象匹配一个资源。
+- 对象必须选一个：要求流量达到 n。
+- 每个资源最多用一次：资源 -> T 的 cap=1。
+- 某资源最多用 c 次：对应 cap=c。
+- 不允许的选择：不要连边。
+
+三、板子：1-based，可直接复制
+------------------------------------------------------------
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+const int INF = (1LL << 60);
+
+struct MCMF
+{
+    struct Edge
+    {
+        int to;
+        int rev;
+        int cap;
+        int cost;
+    };
+
+    int n;
+    int has_negative;
+    vector<vector<Edge>> g;
+
+    void init(int _n)
+    {
+        n = _n;
+        g.clear();
+        g.resize(n + 1);
+        has_negative = 0;
+    }
+
+    void add_edge(int u, int v, int cap, int cost)
+    {
+        int x = g[u].size();
+        int y = g[v].size();
+
+        g[u].push_back({v, y + (u == v), cap, cost});
+        g[v].push_back({u, x, 0, -cost});
+
+        if (cap > 0 && cost < 0)
+        {
+            has_negative = 1;
+        }
+    }
+
+    pair<int, int> min_cost_max_flow(int s, int t, int need = INF)
+    {
+        vector<int> h(n + 1, 0);
+        vector<int> dist(n + 1);
+        vector<int> pre_v(n + 1), pre_e(n + 1);
+
+        if (has_negative)
+        {
+            fill(h.begin(), h.end(), INF);
+            vector<int> inq(n + 1, 0);
+            queue<int> q;
+
+            h[s] = 0;
+            q.push(s);
+            inq[s] = 1;
+
+            while (!q.empty())
+            {
+                int u = q.front();
+                q.pop();
+                inq[u] = 0;
+
+                for (auto e : g[u])
+                {
+                    if (e.cap > 0 && h[e.to] > h[u] + e.cost)
+                    {
+                        h[e.to] = h[u] + e.cost;
+
+                        if (!inq[e.to])
+                        {
+                            inq[e.to] = 1;
+                            q.push(e.to);
+                        }
+                    }
+                }
+            }
+
+            for (int i = 1; i <= n; i++)
+            {
+                if (h[i] == INF)
+                {
+                    h[i] = 0;
+                }
+            }
+        }
+
+        int flow = 0;
+        int cost = 0;
+
+        while (flow < need)
+        {
+            fill(dist.begin(), dist.end(), INF);
+            priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
+
+            dist[s] = 0;
+            pq.push({0, s});
+
+            while (!pq.empty())
+            {
+                auto [d, u] = pq.top();
+                pq.pop();
+
+                if (d != dist[u])
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < (int)g[u].size(); i++)
+                {
+                    Edge e = g[u][i];
+                    if (e.cap == 0)
+                    {
+                        continue;
+                    }
+
+                    int nd = d + e.cost + h[u] - h[e.to];
+
+                    if (nd < dist[e.to])
+                    {
+                        dist[e.to] = nd;
+                        pre_v[e.to] = u;
+                        pre_e[e.to] = i;
+                        pq.push({nd, e.to});
+                    }
+                }
+            }
+
+            if (dist[t] == INF)
+            {
+                break;
+            }
+
+            for (int i = 1; i <= n; i++)
+            {
+                if (dist[i] != INF)
+                {
+                    h[i] += dist[i];
+                }
+            }
+
+            int add = need - flow;
+            for (int v = t; v != s; v = pre_v[v])
+            {
+                int u = pre_v[v];
+                int id = pre_e[v];
+                add = min(add, g[u][id].cap);
+            }
+
+            for (int v = t; v != s; v = pre_v[v])
+            {
+                int u = pre_v[v];
+                int id = pre_e[v];
+                int rev = g[u][id].rev;
+
+                cost += add * g[u][id].cost;
+                g[u][id].cap -= add;
+                g[v][rev].cap += add;
+            }
+
+            flow += add;
+        }
+
+        return {flow, cost};
+    }
+};
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n, m, s, t;
+    cin >> n >> m >> s >> t;
+
+    MCMF mf;
+    mf.init(n);
+
+    for (int i = 1; i <= m; i++)
+    {
+        int u, v, cap, cost;
+        cin >> u >> v >> cap >> cost;
+        mf.add_edge(u, v, cap, cost);
+    }
+
+    auto [flow, cost] = mf.min_cost_max_flow(s, t);
+    cout << flow << " " << cost << "\n";
+
+    return 0;
+}
+
+四、怎么用（需要改哪几处）
+------------------------------------------------------------
+1. 给节点编号，全部放在 1~N；确定源点 S 和汇点 T。
+2. mf.init(N)：N 是【最大节点编号】，不是边数。
+3. 每条真实有向边调用 mf.add_edge(u, v, cap, cost)。
+   注意：函数内部已经自动建反向边，不需要自己再 add_edge(v,u,...)。
+4. 求最大流量下最小费用：
+       auto [flow, cost] = mf.min_cost_max_flow(S, T);
+5. 求恰好 K 单位流的最小费用：
+       auto [flow, cost] = mf.min_cost_max_flow(S, T, K);
+       if (flow < K) 说明无法满足 K 单位流。
+6. 答案可能是 cost，也可能要结合原题做转换。
+7. 多组测试：每组重新调用 mf.init(N)，然后重新加边。
+
+五、示例：两个左点 + 两个右点
+------------------------------------------------------------
+左点 A、B，右点 X、Y；必须都匹配，右点各用一次。
+A->X 费用 1，A->Y 费用 5
+B->X 费用 2，B->Y 费用 3
+
+编号：S=1,A=2,B=3,X=4,Y=5,T=6
+
+mf.init(6);
+mf.add_edge(1, 2, 1, 0);
+mf.add_edge(1, 3, 1, 0);
+mf.add_edge(2, 4, 1, 1);
+mf.add_edge(2, 5, 1, 5);
+mf.add_edge(3, 4, 1, 2);
+mf.add_edge(3, 5, 1, 3);
+mf.add_edge(4, 6, 1, 0);
+mf.add_edge(5, 6, 1, 0);
+auto [flow, cost] = mf.min_cost_max_flow(1, 6, 2);
+
+结果：flow=2，cost=4，选 A->X 和 B->Y。
+
+六、本题 Magical Set 怎么套
+------------------------------------------------------------
+每个原始数 ai 建一个【左节点】（按位置编号，数值本身不是节点编号）。
+每个出现过的因子 d 建一个【右节点】（所有 ai 共用同一个因子 d 节点）。
+S -> 第 i 个原始数：cap=1, cost=0。
+第 i 个原始数 -> d：若 d | ai，cap=1, cost=Omega(d)。
+d -> T：cap=1, cost=0。
+
+Omega(d)：d 的质因数个数，重复计数。例如 Omega(12)=3，Omega(1)=0。
+要求流量恰好 n，设算出的最小费用是 min_cost。
+最终答案 = 所有 Omega(ai) 之和 - min_cost。
+
+注意：这里介绍的是费用流的建图转换。原题还需自行枚举因子、给因子离散化。
+
+七、常见坑和复杂度
+------------------------------------------------------------
+1. add_edge 内已经有反向边；反向边的费用是 -cost，容量初始为 0。
+2. 即使原图所有费用非负，残量网络也会出现负费用反向边。
+   所以不能直接在每轮增广时跑普通 Dijkstra；这里用了势能修正。
+3. 原图有负费用边时，首次用 SPFA 计算势能；要求不存在源点可达的负费用环。
+4. n 是最大节点编号；节点必须在 1~n 范围内。
+5. 本板子求出的 flow 与 cost 都是 long long（由 #define int long long 决定）。
+   要保证总费用不会超出 long long；也不要把 INF 用成实际可达的费用。
+6. 每轮增广至少 1 单位，但可能一次推送多单位。
+   设增广轮数为 A，主体复杂度约 O(A * E log V)，A<=总流量 F。
+   首次存在负费用边时还有一次 SPFA，最坏情况不保证多项式的好界。
+7. 适合一般规模的费用流；在极大流量、极密图、非常紧的时限下仍可能超时。
+8. 不要混淆：最小费用最大流【不是】最小费用的任意流量。
+   如果可以选择不送某条流、只求利润最大，则不能无脑送到最大流。
+9. 调用 min_cost_max_flow 后，残量图会改变；不要不重建就拿它当原图再算另一遍。
+10. 板子按 s != t 使用；cap >= 0，边费用可正可负，无源点可达负费用环。
