@@ -1,0 +1,113 @@
+/*
+树状数组（Fenwick）统一精简板子
+
+什么时候用：
+1. 维护数组的区间加法、区间求和，所有操作 O(log n)。
+2. 单点加、单点赋值、单点查询也能通过区间操作完成。
+3. 只需要“区间加 + 单点查询”时，可另用单树状数组差分版，更省空间。
+
+怎么用（下标从 1 开始）：
+1. 初始化：tree.init(n);
+2. 区间加：tree.rangeAdd(l, r, val);          // a[l...r] += val
+3. 区间和：tree.rangeSum(l, r);               // sum(a[l...r])
+4. 前缀和：tree.prefixSum(x);                  // sum(a[1...x])
+5. 单点加：tree.rangeAdd(x, x, val);           // a[x] += val
+6. 单点查询：tree.rangeSum(x, x);              // a[x]
+7. 单点赋值：
+   tree.rangeAdd(x, x, val - tree.rangeSum(x, x)); // a[x] = val
+
+若有初始数组 a[1...n]：
+    tree.init(n);
+    for (int i = 1; i <= n; i++)
+    {
+        tree.rangeAdd(i, i, a[i]);
+    }
+
+注意：
+1. 采用两棵树状数组（维护差分及其加权和），支持区间加 + 区间和。
+2. 不支持整个区间覆盖赋值 a[l...r] = val；这种操作用懒标记线段树。
+3. 区间查询要求 1 <= l <= r <= n，prefixSum(0) = 0。
+4. 空区间 l > r 时，rangeAdd 自动跳过，rangeSum 返回 0。
+5. 值或区间和可能较大时使用 long long（本板子已 #define int long long）。
+*/
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct Fenwick
+{
+    int n;
+    vector<int> tr1, tr2;
+
+    void init(int _n)
+    {
+        n = _n;
+        tr1.assign(n + 2, 0);
+        tr2.assign(n + 2, 0);
+    }
+
+    void add(vector<int> &tr, int x, int val)
+    {
+        for (; x <= n; x += x & -x)
+        {
+            tr[x] += val;
+        }
+    }
+
+    int query(vector<int> &tr, int x)
+    {
+        int res = 0;
+
+        for (; x > 0; x -= x & -x)
+        {
+            res += tr[x];
+        }
+
+        return res;
+    }
+
+    void rangeAdd(int l, int r, int val)
+    {
+        if (l > r)
+        {
+            return;
+        }
+
+        add(tr1, l, val);
+        add(tr1, r + 1, -val);
+
+        add(tr2, l, val * (l - 1));
+        add(tr2, r + 1, -val * r);
+    }
+
+    int prefixSum(int x)
+    {
+        return query(tr1, x) * x - query(tr2, x);
+    }
+
+    int rangeSum(int l, int r)
+    {
+        if (l > r)
+        {
+            return 0;
+        }
+
+        return prefixSum(r) - prefixSum(l - 1);
+    }
+};
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+
+    Fenwick tree;
+    tree.init(n);
+
+    return 0;
+}
