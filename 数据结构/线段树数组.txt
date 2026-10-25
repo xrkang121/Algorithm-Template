@@ -1,0 +1,134 @@
+/*
+线段树：区间加、区间乘、区间赋值、区间求和、单点查询
+
+什么时候用：需要同时维护区间加/乘/覆盖赋值，以及区间和时。
+
+用法（下标从 1 开始）：
+SegTree tree;
+tree.init(a);                // a[1..n] 为初始数组，建树 O(n)
+tree.rangeAdd(l, r, v);     // a[l..r] += v
+tree.rangeMul(l, r, v);     // a[l..r] *= v
+tree.rangeSet(l, r, v);     // a[l..r] = v
+tree.rangeSum(l, r);        // 查询区间和
+tree.get(x);                // 查询单点 a[x]
+
+所有修改、查询均为 O(log n)，空间 O(n)。
+没有取模，乘法结果和区间和必须保证不超过 long long 范围。
+核心：统一懒标记 f(x) = k*x+b；赋值就是 k=0、b=v。
+*/
+
+#include <bits/stdc++.h>
+using namespace std;
+
+#define int long long
+
+struct SegTree
+{
+    int n;
+    vector<int> sum, mul, add;
+
+    void init(const vector<int> &a)
+    {
+        n = (int)a.size() - 1;
+        sum.assign(4 * n + 5, 0);
+        mul.assign(4 * n + 5, 1);
+        add.assign(4 * n + 5, 0);
+        build(1, 1, n, a);
+    }
+
+    void up(int p)
+    {
+        sum[p] = sum[p * 2] + sum[p * 2 + 1];
+    }
+
+    void apply(int p, int l, int r, int k, int b)
+    {
+        sum[p] = sum[p] * k + (r - l + 1) * b;
+        mul[p] = mul[p] * k;
+        add[p] = add[p] * k + b;
+    }
+
+    void down(int p, int l, int r)
+    {
+        if (mul[p] == 1 && add[p] == 0)
+        {
+            return;
+        }
+
+        int mid = (l + r) / 2;
+        apply(p * 2, l, mid, mul[p], add[p]);
+        apply(p * 2 + 1, mid + 1, r, mul[p], add[p]);
+        mul[p] = 1;
+        add[p] = 0;
+    }
+
+    void build(int p, int l, int r, const vector<int> &a)
+    {
+        if (l == r)
+        {
+            sum[p] = a[l];
+            return;
+        }
+
+        int mid = (l + r) / 2;
+        build(p * 2, l, mid, a);
+        build(p * 2 + 1, mid + 1, r, a);
+        up(p);
+    }
+
+    void modify(int p, int l, int r, int ql, int qr, int k, int b)
+    {
+        if (ql <= l && r <= qr)
+        {
+            apply(p, l, r, k, b);
+            return;
+        }
+
+        down(p, l, r);
+        int mid = (l + r) / 2;
+        if (ql <= mid) modify(p * 2, l, mid, ql, qr, k, b);
+        if (qr > mid) modify(p * 2 + 1, mid + 1, r, ql, qr, k, b);
+        up(p);
+    }
+
+    int query(int p, int l, int r, int ql, int qr)
+    {
+        if (ql <= l && r <= qr)
+        {
+            return sum[p];
+        }
+
+        down(p, l, r);
+        int mid = (l + r) / 2;
+        int res = 0;
+        if (ql <= mid) res += query(p * 2, l, mid, ql, qr);
+        if (qr > mid) res += query(p * 2 + 1, mid + 1, r, ql, qr);
+        return res;
+    }
+
+    void rangeAdd(int l, int r, int v) { if (l <= r) modify(1, 1, n, l, r, 1, v); }
+    void rangeMul(int l, int r, int v) { if (l <= r) modify(1, 1, n, l, r, v, 0); }
+    void rangeSet(int l, int r, int v) { if (l <= r) modify(1, 1, n, l, r, 0, v); }
+    int rangeSum(int l, int r) { return l <= r ? query(1, 1, n, l, r) : 0; }
+    int get(int x) { return rangeSum(x, x); }
+};
+
+signed main()
+{
+    ios::sync_with_stdio(0);
+    cin.tie(0), cout.tie(0);
+
+    int n;
+    cin >> n;
+
+    vector<int> a(n + 1);
+    for (int i = 1; i <= n; i++)
+    {
+        cin >> a[i];
+    }
+
+    SegTree tree;
+    tree.init(a);
+
+    return 0;
+}
